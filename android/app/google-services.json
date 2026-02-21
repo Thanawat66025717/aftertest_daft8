@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1053103180212",
+    "firebase_url": "https://upbus-f5030-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "upbus-f5030",
+    "storage_bucket": "upbus-f5030.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1053103180212:android:2ab9899545ad95fc9c8ae1",
+        "android_client_info": {
+          "package_name": "com.example.projectapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBgOWItBo8D4Fl2GFm8N2zfizaPt7nxbGU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

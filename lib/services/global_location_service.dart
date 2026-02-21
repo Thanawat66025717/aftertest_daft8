@@ -1,0 +1,1011 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Add this import
+import 'dart:convert'; // For jsonDecode
+import 'package:flutter/services.dart' show rootBundle; // For loading assets
+import '../models/bus_model.dart';
+import 'notification_service.dart';
+import 'route_service.dart';
+
+/// Global service สำหรับ location tracking และแจ้งเตือนรถใกล้ถึง
+/// ทำงานตลอดเวลาไม่ว่าจะอยู่หน้าไหนก็ตาม
+class GlobalLocationService extends ChangeNotifier {
+  static final GlobalLocationService _instance =
+      GlobalLocationService._internal();
+  factory GlobalLocationService() => _instance;
+
+  // พิกัดจุดพักรถ (Rest Stops) - รัศมี 150 เมตร
+  final List<LatLng> _restStops = const [
+    LatLng(19.030639, 99.923262), // Zone A (หอพัก)
+    LatLng(19.030798, 99.923198),
+    LatLng(19.022599, 99.895530), // Zone B (หน้ามอ)
+    LatLng(19.025462, 99.894947),
+    LatLng(19.025604, 99.894740),
+  ];
+
+  List<LatLng> get restStops => _restStops;
+
+  // ระยะทางที่ยอมรับได้สำหรับจุดพักรถ (เมตร)
+  static const double _restStopRadius = 150.0;
+
+  GlobalLocationService._internal();
+
+  // State
+  LatLng? _userPosition;
+  List<Bus> _buses = [];
+  Bus? _closestBus;
+  List<Map<String, dynamic>> _allBusStops = [];
+  bool _notifyEnabled = false;
+  String? _selectedNotifyRouteId;
+  bool _isInitialized = false;
+
+  // New State for Destination
+  String? _destinationName;
+  String? _destinationRouteId;
+  final Map<String, double> _prevDistToDest =
+      {}; // เก็บระยะห่างจากปลายทางครั้งก่อน
+  final Map<String, int> _lastAlertStage =
+      {}; // เก็บระดับการแจ้งเตือนล่าสุดของแต่ละคัน (0=ยังไม่แจ้ง, 1=5นาที, 2=3นาที, 3=1นาที, 4=ถึงแล้ว)
+
+  // Off-Route Detection
+  final Map<String, List<LatLng>> _routePaths = {}; // Cached route paths
+  static const double _offRouteThresholdMeters = 50.0;
+
+  // Snap-to-Route Interpolation
+  final Map<String, LatLng> _displayedPositions =
+      {}; // ตำแหน่งที่แสดงบน UI (smooth)
+  final Map<String, Timer> _interpTimers = {}; // timer ต่อคัน
+  final Map<String, bool> _recentOffRoutes = {}; // Track off-route status
+
+  // ─── Green Route PKY Config ───────────────────────────────────────────────
+  /// โหมดการวิ่งเข้า PKY ของสายหน้ามอ
+  /// 'none' = ไม่เข้าตลอดวัน, 'always' = เข้าตลอดวัน, 'custom' = กำหนดเวลาเอง
+  String _greenPkyMode = 'custom'; // default = เดิม (14:00)
+  int _greenPkyStartHour = 14;
+  int _greenPkyStartMinute = 0;
+  StreamSubscription? _routeConfigSubscription;
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Subscriptions
+  StreamSubscription? _busSubscription;
+  StreamSubscription<Position>? _positionSubscription;
+
+  // Constants
+  static const double _alertDistanceMeters = 250.0; // ระยะ "มาถึงแล้ว"
+  static const double _stopProximityMeters = 50.0;
+
+  // Getters
+  LatLng? get userPosition => _userPosition;
+  bool isOffRoute(String busId) => _recentOffRoutes.containsKey(busId);
+
+  /// Getter สำหรับ config PKY (ให้ UI อ่านค่าได้)
+  String get greenPkyMode => _greenPkyMode;
+  int get greenPkyStartHour => _greenPkyStartHour;
+  int get greenPkyStartMinute => _greenPkyStartMinute;
+
+  /// คืน true ถ้า ณ ตอนนี้สายหน้ามอควรวิ่งเข้า PKY
+  bool isGreenPKYActive() {
+    switch (_greenPkyMode) {
+      case 'always':
+        return true;
+      case 'none':
+        return false;
+      case 'custom':
+      default:
+        final now = DateTime.now();
+        final nowMins = now.hour * 60 + now.minute;
+        final startMins = _greenPkyStartHour * 60 + _greenPkyStartMinute;
+        return nowMins >= startMins;
+    }
+  }
+
+  /// คืน buses พร้อมตำแหน่งที่ smooth แล้ว (snap-to-route)
+  List<Bus> get buses {
+    if (_displayedPositions.isEmpty) return _buses;
+    return _buses.map((bus) {
+      final displayed = _displayedPositions[bus.id];
+      if (displayed != null) return bus.copyWithPosition(displayed);
+      return bus;
+    }).toList();
+  }
+
+  Bus? get closestBus => _closestBus;
+  List<Map<String, dynamic>> get allBusStops => _allBusStops;
+  bool get notifyEnabled => _notifyEnabled;
+  String? get selectedNotifyRouteId => _selectedNotifyRouteId;
+  bool get isInitialized => _isInitialized;
+  String? get destinationName => _destinationName;
+  String? get destinationRouteId => _destinationRouteId;
+
+  /// เริ่มต้น service (เรียกครั้งเดียวตอน app start)
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    debugPrint("🚀 [GlobalLocationService] Initializing...");
+
+    await NotificationService.initialize();
+    await _fetchBusStops();
+    await _loadRoutePaths(); // Load route paths for off-route detection
+    _listenToGreenRouteConfig(); // Listen to PKY config from Firestore
+    _listenToBusLocation();
+    await _startLocationTracking();
+
+    _isInitialized = true;
+    debugPrint("✅ [GlobalLocationService] Initialized successfully");
+  }
+
+  /// ฟังค่า config PKY สายหน้ามอจาก Firestore แบบ real-time
+  void _listenToGreenRouteConfig() {
+    final now = DateTime.now();
+    final dateStr = "${now.year}-${now.month}-${now.day}";
+    _routeConfigSubscription?.cancel();
+    _routeConfigSubscription = FirebaseFirestore.instance
+        .collection('route_config')
+        .doc(dateStr)
+        .snapshots()
+        .listen((snapshot) {
+          if (!snapshot.exists || snapshot.data() == null) {
+            // ไม่มี config วันนี้ → ใช้ default
+            _greenPkyMode = 'custom';
+            _greenPkyStartHour = 14;
+            _greenPkyStartMinute = 0;
+          } else {
+            final data = snapshot.data()!;
+            _greenPkyMode = data['green_pky_mode']?.toString() ?? 'custom';
+            _greenPkyStartHour =
+                (data['green_pky_start_hour'] as num?)?.toInt() ?? 14;
+            _greenPkyStartMinute =
+                (data['green_pky_start_minute'] as num?)?.toInt() ?? 0;
+          }
+          debugPrint(
+            "📋 [GreenRoute] PKY config: mode=$_greenPkyMode "
+            "start=$_greenPkyStartHour:${_greenPkyStartMinute.toString().padLeft(2, '0')}",
+          );
+          // เมื่อ config เปลี่ยน ให้ recheck off-route ทันที
+          _checkOffRouteStatus();
+          notifyListeners();
+        });
+  }
+
+  /// เปิด/ปิดการแจ้งเตือน
+  void setNotifyEnabled(bool enabled, {String? routeId}) {
+    _notifyEnabled = enabled;
+    _selectedNotifyRouteId = routeId;
+    _lastAlertStage.clear(); // Reset history
+    notifyListeners();
+    debugPrint(
+      "🔔 [GlobalLocationService] Notify enabled: $enabled, routeId: $routeId",
+    );
+  }
+
+  /// ตั้งค่าจุดหมายปลายทาง (ถ้า name เป็น null คือยกเลิก)
+  void setDestination(String? name, String? routeId) {
+    _destinationName = name;
+    _destinationRouteId = routeId;
+    _prevDistToDest.clear(); // Reset history
+    _lastAlertStage.clear(); // Reset alert history
+
+    // ถ้ามีการเลือกปลายทาง ให้เปิดแจ้งเตือนอัตโนมัติสำหรับสายนั้น
+    if (name != null && routeId != null) {
+      _notifyEnabled = true;
+      _selectedNotifyRouteId = routeId;
+      debugPrint(
+        "🎯 [GlobalLocationService] Source set to $name (Route: $routeId)",
+      );
+    } else {
+      // ถ้ายกเลิก ก็ไม่ต้องปิด notify แต่ให้เคลียร์ filter
+      _selectedNotifyRouteId = null;
+      debugPrint("❌ [GlobalLocationService] Destination cleared");
+    }
+
+    _updateClosestBus(); // Recalculate immediately
+    notifyListeners();
+  }
+
+  /// คืนค่าพิกัดของจุดหมายปลายทาง (ถ้ามี)
+  LatLng? get destinationPosition {
+    if (_destinationName == null || _allBusStops.isEmpty) return null;
+    try {
+      final stop = _allBusStops.firstWhere(
+        (s) => s['name'] == _destinationName,
+      );
+      return LatLng(stop['lat'], stop['long']);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// ดึงข้อมูลป้ายรถจาก Firestore
+  Future<void> _fetchBusStops() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('Bus stop')
+          .get();
+      _allBusStops = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'],
+          'lat': double.tryParse(data['lat'].toString()) ?? 0.0,
+          'long': double.tryParse(data['long'].toString()) ?? 0.0,
+          'route_id': data['route_id'],
+        };
+      }).toList();
+
+      debugPrint(
+        "🚏 [GlobalLocationService] Fetched ${_allBusStops.length} bus stops",
+      );
+      notifyListeners();
+    } catch (e) {
+      debugPrint("❌ [GlobalLocationService] Error fetching bus stops: $e");
+    }
+  }
+
+  /// ฟังตำแหน่งรถจาก Firebase Realtime Database
+  void _listenToBusLocation() {
+    final gpsRef = FirebaseDatabase.instance.ref("GPS");
+    _busSubscription = gpsRef.onValue.listen((event) {
+      final data = event.snapshot.value;
+      if (data == null) return;
+
+      // เก็บ bus เดิมไว้เพื่อ reuse object และเช็ค movement
+      final prevMap = {for (var b in _buses) b.id: b};
+
+      List<Bus> newBuses = [];
+      bool anyChanged = false;
+
+      if (data is Map) {
+        data.forEach((key, value) {
+          if (value is Map &&
+              value.containsKey('lat') &&
+              value.containsKey('lng')) {
+            try {
+              final fresh = Bus.fromFirebase(key.toString(), value);
+              final prev = prevMap[fresh.id];
+
+              if (prev == null) {
+                // รถใหม่
+                newBuses.add(fresh);
+                anyChanged = true;
+              } else {
+                // ตรวจว่าขยับเกิน 2 เมตรไหม
+                const dist = Distance();
+                final moved = dist.as(
+                  LengthUnit.Meter,
+                  prev.position,
+                  fresh.position,
+                );
+                if (moved >= 2.0) {
+                  newBuses.add(fresh); // ใช้ตำแหน่งใหม่
+                  anyChanged = true;
+                } else {
+                  newBuses.add(
+                    prev,
+                  ); // ใช้ object เดิม — AnimatedMarker ไม่ warp
+                }
+              }
+            } catch (e) {
+              debugPrint('Error parsing bus $key: $e');
+            }
+          }
+        });
+
+        if (newBuses.isEmpty &&
+            data.containsKey('lat') &&
+            data.containsKey('lng')) {
+          newBuses.add(Bus.fromFirebase('bus_1', data));
+          anyChanged = true;
+        }
+      }
+
+      // เรียง list ให้ stable ตาม bus id — ป้องกัน key mismatch
+      newBuses.sort((a, b) => a.id.compareTo(b.id));
+      _buses = newBuses;
+      _checkOffRouteStatus();
+
+      // เรียก smooth interpolation สำหรับรถที่ตำแหน่งเปลี่ยน
+      if (anyChanged || newBuses.length != prevMap.length) {
+        for (final bus in newBuses) {
+          final prev = prevMap[bus.id];
+          // interpolate เฉพาะรถที่ตำแหน่งเปลี่ยน (หรือรถใหม่)
+          if (prev == null || prev.position != bus.position) {
+            _interpolateAlongRoute(bus);
+          }
+        }
+        _updateClosestBus();
+        // notifyListeners จะถูกเรียกภายใน _interpolateAlongRoute อยู่แล้ว
+        // แต่เรียกเพิ่มเพื่อให้ closestBus อัปเดตทันที
+        notifyListeners();
+      }
+    });
+  }
+
+  /// เริ่มติดตามตำแหน่งผู้ใช้
+  Future<void> _startLocationTracking() async {
+    debugPrint("📡 [GlobalLocationService] Starting location tracking...");
+
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      debugPrint("❌ [GlobalLocationService] Location service is DISABLED!");
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        debugPrint("❌ [GlobalLocationService] Permission DENIED!");
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      debugPrint("❌ [GlobalLocationService] Permission DENIED FOREVER!");
+      return;
+    }
+
+    _positionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 10,
+          ),
+        ).listen(
+          (Position position) {
+            _userPosition = LatLng(position.latitude, position.longitude);
+            _updateClosestBus();
+            notifyListeners();
+          },
+          onError: (e) {
+            debugPrint("❌ [GlobalLocationService] Location Stream Error: $e");
+            // Handle error gracefully, maybe disable tracking
+          },
+        );
+  }
+
+  /// แมป routeColor ของรถ → key ของ _routePaths
+  List<LatLng>? _getRoutePathForColor(String routeColor) {
+    final c = routeColor.toLowerCase();
+    if (c.contains('green') || c.contains('เขียว')) {
+      return _routePaths['S1'];
+    } else if (c.contains('red') || c.contains('แดง')) {
+      return _routePaths['S2'];
+    } else if (c.contains('blue') ||
+        c.contains('น้ำเงิน') ||
+        c.contains('ict')) {
+      return _routePaths['S3'];
+    }
+    return null;
+  }
+
+  /// แมป route_id ของป้าย → key ของ _routePaths
+  List<LatLng>? _getRoutePathForStopRouteId(String? routeId) {
+    if (routeId == null) return null;
+    final r = routeId.toLowerCase();
+    if (r.contains('green') || r.contains('s1') || r.contains('เขียว')) {
+      return _routePaths['S1'];
+    } else if (r.contains('red') || r.contains('s2') || r.contains('แดง')) {
+      return _routePaths['S2'];
+    } else if (r.contains('blue') ||
+        r.contains('s3') ||
+        r.contains('น้ำเงิน') ||
+        r.contains('ict')) {
+      return _routePaths['S3'];
+    }
+    return null;
+  }
+
+  /// คำนวณรถที่ใกล้ที่สุดและแจ้งเตือน
+  Future<void> _updateClosestBus() async {
+    if (_buses.isEmpty || _userPosition == null) return;
+
+    final Distance distance = const Distance();
+
+    // 1. หาป้ายที่ใกล้ตัวเราที่สุด (เพื่อดู Context ว่าเราอยู่ที่ป้ายหรือเปล่า)
+    Map<String, dynamic>? closestStopToUser;
+    double userDistToClosestStop = double.infinity;
+    String closestStopName = "ไม่ทราบชื่อ";
+
+    if (_allBusStops.isNotEmpty) {
+      for (var stop in _allBusStops) {
+        final stopPos = LatLng(stop['lat'], stop['long']);
+        // ใช้ระยะทางจริง (Route Distance) ถ้าทำได้
+        final d = _distanceToStop(stopPos, stop['route_id']?.toString());
+        if (d < userDistToClosestStop) {
+          userDistToClosestStop = d;
+          closestStopToUser = stop;
+        }
+      }
+      if (closestStopToUser != null) {
+        closestStopName = closestStopToUser['name'].toString();
+      }
+    }
+
+    // 2. เช็คว่า "เราอยู่ที่ป้ายไหม?" (ระยะห่างตามถนน <= 50 เมตร)
+    // แต่ตอนนี้เราจะใช้ closestStopToUser เป็น target หลักในการแจ้งเตือนเสมอ
+    // ถ้าเราอยู่ใกล้ป้าย (< 50m) ก็ถือว่ารอที่ป้าย
+    final bool isUserAtStop =
+        closestStopToUser != null &&
+        userDistToClosestStop <= _stopProximityMeters;
+
+    List<Bus> busesWithDistance = [];
+
+    for (final bus in _buses) {
+      // คำนวณระยะทางสำหรับรถคันนี้
+      double distToTarget;
+
+      // เราต้องใช้ Route Path ของรถคันนั้นๆ ในการวัดระยะเสมอ
+      final routePath = _getRoutePathForColor(bus.routeColor);
+
+      if (closestStopToUser != null) {
+        // กรณีใหม่: ยึด "ป้ายที่ใกล้ที่สุด" เป็นหลักเสมอ
+        // วัดระยะ "รถ -> ป้ายที่ใกล้ที่สุด"
+        final stopPos = LatLng(
+          closestStopToUser['lat'],
+          closestStopToUser['long'],
+        );
+
+        double? polyDist;
+        if (routePath != null && routePath.length >= 2) {
+          polyDist = RouteService.getPolylineDistance(
+            bus.position,
+            stopPos,
+            routePath,
+          );
+        }
+        distToTarget =
+            polyDist ?? distance.as(LengthUnit.Meter, bus.position, stopPos);
+      } else {
+        // กรณีสำรอง: หาป้ายไม่เจอจริงๆ ค่อยวัด "รถ -> เรา"
+        double? polyDist;
+        if (routePath != null && routePath.length >= 2) {
+          polyDist = RouteService.getPolylineDistance(
+            _userPosition!,
+            bus.position,
+            routePath,
+          );
+        }
+        distToTarget =
+            polyDist ??
+            distance.as(LengthUnit.Meter, _userPosition!, bus.position);
+      }
+
+      busesWithDistance.add(bus.copyWithDistance(distToTarget));
+    }
+
+    // เรียงลำดับตามระยะทางที่คำนวณได้
+    busesWithDistance.sort(
+      (a, b) => (a.distanceToUser ?? double.infinity).compareTo(
+        b.distanceToUser ?? double.infinity,
+      ),
+    );
+
+    _buses = busesWithDistance;
+    _closestBus = busesWithDistance.isNotEmpty ? busesWithDistance.first : null;
+
+    // --- แจ้งเตือน (Notification) ---
+    if (_notifyEnabled) {
+      Bus? targetBus;
+
+      // Logic การเลือก Target Bus (เหมือนเดิม แต่ใช้ list ที่คำนวณระยะใหม่แล้ว)
+      if (_destinationName != null &&
+          _destinationRouteId != null &&
+          destinationPosition != null) {
+        final targetId = _destinationRouteId!.trim().toLowerCase();
+        var candidateBuses = busesWithDistance.where((b) {
+          final busRouteId = b.routeId.trim().toLowerCase();
+          return busRouteId.contains(targetId) || targetId.contains(busRouteId);
+        }).toList();
+
+        Bus? approachingBus;
+        double minDistance = double.infinity;
+        final destPos = destinationPosition!;
+
+        for (var bus in candidateBuses) {
+          double distToDest = distance.as(
+            LengthUnit.Meter,
+            bus.position,
+            destPos,
+          );
+          if (_prevDistToDest.containsKey(bus.id)) {
+            double prevDist = _prevDistToDest[bus.id]!;
+            if (distToDest <= prevDist) {
+              if ((bus.distanceToUser ?? double.infinity) < minDistance) {
+                minDistance = bus.distanceToUser ?? double.infinity;
+                approachingBus = bus;
+              }
+            }
+          } else {
+            if ((bus.distanceToUser ?? double.infinity) < minDistance) {
+              minDistance = bus.distanceToUser ?? double.infinity;
+              approachingBus = bus;
+            }
+          }
+          _prevDistToDest[bus.id] = distToDest;
+        }
+        targetBus = approachingBus;
+      } else if (_selectedNotifyRouteId != null) {
+        final targetId = _selectedNotifyRouteId!.trim().toLowerCase();
+        final filteredBuses = busesWithDistance.where((b) {
+          final busRouteId = b.routeId.trim().toLowerCase();
+          return busRouteId.contains(targetId) || targetId.contains(busRouteId);
+        }).toList();
+        targetBus = filteredBuses.isNotEmpty ? filteredBuses.first : null;
+      } else {
+        targetBus = _closestBus;
+      }
+
+      if (targetBus != null) {
+        final targetDist = targetBus.distanceToUser ?? double.infinity;
+        final etaSeconds = NotificationService.calculateEtaSeconds(targetDist);
+        final busId = targetBus.id;
+        final lastStage = _lastAlertStage[busId] ?? 0;
+
+        // เตรียม Context ข้อความ
+        String contextMsg;
+        if (closestStopToUser != null) {
+          // แจ้งเตือนโดยอ้างอิงชื่อป้ายเสมอ
+          contextMsg = "ป้าย$closestStopName";
+          if (!isUserAtStop) {
+            // ถ้าตัวเราไม่ได้อยู่ที่ป้าย (ห่าง > 50m) ให้วงเล็บเพิ่ม
+            contextMsg += " (ป้ายใกล้คุณ)";
+          }
+        } else {
+          // หาป้ายไม่เจอจริงๆ
+          contextMsg = "คุณ";
+        }
+
+        // เช็ค Stage การแจ้งเตือน
+        if (targetDist <= _alertDistanceMeters) {
+          if (lastStage < 4) {
+            _triggerAlert(
+              targetBus,
+              targetDist,
+              etaSeconds,
+              contextMsg,
+              isUserAtStop,
+            );
+            _lastAlertStage[busId] = 4;
+          }
+        } else if (etaSeconds <= 60) {
+          if (lastStage < 3) {
+            _triggerAlert(
+              targetBus,
+              targetDist,
+              etaSeconds,
+              contextMsg,
+              isUserAtStop,
+            );
+            _lastAlertStage[busId] = 3;
+          }
+        } else if (etaSeconds <= 180) {
+          // 3 นาที
+          if (lastStage < 2) {
+            _triggerAlert(
+              targetBus,
+              targetDist,
+              etaSeconds,
+              contextMsg,
+              isUserAtStop,
+            );
+            _lastAlertStage[busId] = 2;
+          }
+        } else if (etaSeconds <= 300) {
+          // 5 นาที
+          if (lastStage < 1) {
+            _triggerAlert(
+              targetBus,
+              targetDist,
+              etaSeconds,
+              contextMsg,
+              isUserAtStop,
+            );
+            _lastAlertStage[busId] = 1;
+          }
+        }
+      }
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> _triggerAlert(
+    Bus bus,
+    double dist,
+    int eta,
+    String locationContext,
+    bool isAtStop,
+  ) async {
+    String colorName = "รถ";
+    final rId = bus.routeId.toLowerCase();
+    if (rId.contains("green"))
+      colorName = "สีเขียว";
+    else if (rId.contains("red"))
+      colorName = "สีแดง";
+    else if (rId.contains("blue"))
+      colorName = "สีน้ำเงิน";
+    else if (rId.contains("purple"))
+      colorName = "สีม่วง";
+
+    // Format Title
+    String title = "🚌 รถ$colorName กำลังมา!";
+
+    // Format Body
+    String timeText = (eta <= 0 || dist < 50)
+        ? "ถึงแล้ว"
+        : "อีก ${NotificationService.formatEta(eta)}";
+
+    String body;
+    if (dist < 50) {
+      body = isAtStop ? "รถแวะจอดที่$locationContext แล้ว" : "รถถึงตัวคุณแล้ว";
+    } else {
+      body = "$timeText จะถึง$locationContext";
+    }
+
+    if (_destinationName != null) {
+      body += " (ไป: $_destinationName)";
+    }
+
+    // เรียกใช้ showNotification โดยตรงเพื่อให้ Custom Body ได้เต็มที่
+    await NotificationService.showNotification(
+      id: bus.id.hashCode,
+      title: title,
+      body: "$body (ห่าง ${dist.toStringAsFixed(0)} ม.)",
+      payload: "bus_${bus.id}",
+    );
+    await NotificationService.vibrate();
+
+    debugPrint("🔔 Alert: $title - $body");
+  }
+
+  /// คำนวณระยะทางไปยังป้ายรถตาม polyline (ถ้ามี route path)
+  double _distanceToStop(LatLng stopPos, String? routeId) {
+    final Distance distance = const Distance();
+    final routePath = _getRoutePathForStopRouteId(routeId);
+    if (routePath != null && routePath.length >= 2) {
+      final polyDist = RouteService.getPolylineDistance(
+        _userPosition!,
+        stopPos,
+        routePath,
+      );
+      if (polyDist != null) return polyDist;
+    }
+    // Fallback เป็น Haversine
+    return distance.as(LengthUnit.Meter, _userPosition!, stopPos);
+  }
+
+  /// คำนวณหาป้ายที่ใกล้ที่สุด
+  String getClosestStopInfo() {
+    if (_userPosition == null) return "รอ GPS...";
+    if (_allBusStops.isEmpty) return "ไม่มีข้อมูลป้าย";
+
+    double closestDist = double.infinity;
+    String? closestName;
+
+    for (var stop in _allBusStops) {
+      final stopPos = LatLng(stop['lat'], stop['long']);
+      final dist = _distanceToStop(stopPos, stop['route_id']?.toString());
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestName = stop['name'];
+      }
+    }
+
+    if (closestName == null) return "ไม่พบ";
+    return "$closestName (${closestDist.toStringAsFixed(0)}m)";
+  }
+
+  /// คืนค่า Map ของป้ายที่ใกล้ที่สุด
+  Map<String, dynamic>? findClosestStop() {
+    if (_userPosition == null || _allBusStops.isEmpty) return null;
+
+    double closestDist = double.infinity;
+    Map<String, dynamic>? closestStop;
+
+    for (var stop in _allBusStops) {
+      final stopPos = LatLng(stop['lat'], stop['long']);
+      final dist = _distanceToStop(stopPos, stop['route_id']?.toString());
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestStop = stop;
+      }
+    }
+
+    return closestStop;
+  }
+
+  // --- Off-Route Detection Logic ---
+
+  Future<void> _loadRoutePaths() async {
+    try {
+      // S1-AM = สายเขียว เส้นปกติ (05:00-13:59)
+      _routePaths['S1-AM'] = await _parseGeoJsonToPoints(
+        'assets/data/bus_route1.geojson',
+      );
+      // S1-PM = สายเขียว เข้า PKY (14:00-00:00)
+      _routePaths['S1-PM'] = await _parseGeoJsonToPoints(
+        'assets/data/bus_route1_pm2.geojson',
+      );
+      // S1 = alias สำหรับ backward-compat
+      _routePaths['S1'] = _routePaths['S1-AM']!;
+      _routePaths['S2'] = await _parseGeoJsonToPoints(
+        'assets/data/bus_route2.geojson',
+      );
+      _routePaths['S3'] = await _parseGeoJsonToPoints(
+        'assets/data/bus_route3.geojson',
+      );
+      debugPrint("✅ Route paths loaded for off-route detection.");
+    } catch (e) {
+      debugPrint("❌ Error loading route paths: $e");
+    }
+  }
+
+  // --- Snap-to-Route Interpolation Helpers ---
+
+  /// เลือก route path ตามสีรถและ PKY config (config-aware)
+  List<LatLng>? _getRoutePathForBus(Bus bus) {
+    final rId = bus.routeId.toLowerCase();
+    if (rId.contains('s1') || rId.contains('green') || rId.contains('เขียว')) {
+      return isGreenPKYActive() ? _routePaths['S1-PM'] : _routePaths['S1-AM'];
+    } else if (rId.contains('s2') ||
+        rId.contains('red') ||
+        rId.contains('แดง')) {
+      return _routePaths['S2'];
+    } else if (rId.contains('s3') ||
+        rId.contains('blue') ||
+        rId.contains('น้ำเงิน') ||
+        rId.contains('ict')) {
+      return _routePaths['S3'];
+    }
+    return null;
+  }
+
+  /// Snap ตำแหน่งลง route — คืน (snappedPoint, distanceMeters)
+  ({LatLng snapped, double dist}) _snapToRoute(LatLng pos, List<LatLng> path) {
+    const distance = Distance();
+    LatLng closest = path.first;
+    double minDist = double.infinity;
+    for (final point in path) {
+      final d = distance.as(LengthUnit.Meter, pos, point);
+      if (d < minDist) {
+        minDist = d;
+        closest = point;
+      }
+    }
+    return (snapped: closest, dist: minDist);
+  }
+
+  /// หา index ที่ใกล้ point ที่สุดใน path
+  int _closestIndex(LatLng point, List<LatLng> path) {
+    const distance = Distance();
+    int best = 0;
+    double minDist = double.infinity;
+    for (int i = 0; i < path.length; i++) {
+      final d = distance.as(LengthUnit.Meter, point, path[i]);
+      if (d < minDist) {
+        minDist = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /// เริ่ม smooth interpolation สำหรับ bus 1 คัน
+  /// - ถ้า on-route: step ผ่าน waypoints บน polyline
+  /// - ถ้า off-route: ใช้ raw GPS ให้ manager เห็นชัด
+  void _interpolateAlongRoute(Bus bus) {
+    // 1. ถ้าอยู่ในจุดพักรถ -> ถือว่าปกติ (ไม่ Off-route)
+    if (_isBusInRestStop(bus)) {
+      if (_recentOffRoutes.containsKey(bus.id)) {
+        _recentOffRoutes.remove(bus.id);
+        notifyListeners();
+      }
+      // ยังคง update position ให้เห็นรถขยับในจุดพัก
+      _displayedPositions[bus.id] = bus.position;
+      notifyListeners();
+      return;
+    }
+
+    final path = _getRoutePathForBus(bus);
+    if (path == null || path.isEmpty) {
+      // ไม่รู้ route -> แสดง raw GPS
+      _displayedPositions[bus.id] = bus.position;
+      notifyListeners();
+      return;
+    }
+
+    // Snap to route
+    final snap = _snapToRoute(bus.position, path);
+
+    // Check Off-route
+    if (snap.dist > _offRouteThresholdMeters) {
+      if (!_recentOffRoutes.containsKey(bus.id)) {
+        _recentOffRoutes[bus.id] = true;
+        // แจ้งเตือน Off-route (ถ้าต้องการ)
+      }
+      _interpTimers[bus.id]?.cancel();
+      _displayedPositions[bus.id] = bus.position;
+      notifyListeners();
+      return;
+    }
+
+    // On-route: Clear alert
+    if (_recentOffRoutes.containsKey(bus.id)) {
+      _recentOffRoutes.remove(bus.id);
+      notifyListeners();
+    }
+
+    // Interpolate logic
+    final prevDisplayed = _displayedPositions[bus.id] ?? snap.snapped;
+    final fromIdx = _closestIndex(prevDisplayed, path);
+    final toIdx = _closestIndex(snap.snapped, path);
+
+    List<LatLng> waypoints;
+    if (fromIdx <= toIdx) {
+      waypoints = path.sublist(fromIdx, toIdx + 1);
+    } else {
+      waypoints = [prevDisplayed, snap.snapped];
+    }
+
+    if (waypoints.length <= 1) {
+      _displayedPositions[bus.id] = snap.snapped;
+      notifyListeners();
+      return;
+    }
+
+    _interpTimers[bus.id]?.cancel();
+    int step = 0;
+    // Animation duration 500ms (tuned)
+    final ms = (500 / waypoints.length).round().clamp(20, 250);
+
+    _interpTimers[bus.id] = Timer.periodic(Duration(milliseconds: ms), (timer) {
+      if (step >= waypoints.length) {
+        timer.cancel();
+        return;
+      }
+      _displayedPositions[bus.id] = waypoints[step];
+      step++;
+      notifyListeners();
+    });
+  }
+
+  bool _isBusInRestStop(Bus bus) {
+    const distance = Distance();
+    for (final stop in _restStops) {
+      if (distance.as(LengthUnit.Meter, bus.position, stop) <=
+          _restStopRadius) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<List<LatLng>> _parseGeoJsonToPoints(String assetPath) async {
+    String data = await rootBundle.loadString(assetPath);
+    var jsonResult = jsonDecode(data);
+    List<LatLng> points = [];
+
+    var features = jsonResult['features'] as List;
+    for (var feature in features) {
+      var geometry = feature['geometry'];
+      if (geometry['type'] == 'LineString') {
+        var coordinates = geometry['coordinates'] as List;
+        for (var coord in coordinates) {
+          points.add(LatLng(coord[1], coord[0]));
+        }
+      }
+    }
+    return points;
+  }
+
+  // To prevent spamming notifications, we track the last alert time per bus
+  final Map<String, DateTime> _lastOffRouteAlert = {};
+
+  void _checkOffRouteStatus() {
+    for (var bus in _buses) {
+      // ถ้าอยู่ในจุดพักรถ -> ข้ามการเช็ค Off-route
+      if (_isBusInRestStop(bus)) continue;
+
+      // Find matching route path
+      List<LatLng>? path;
+      final rId = bus.routeId.toLowerCase();
+      // Map color names/routeIDs → ใช้ config-aware method แทน hardcode
+      if (rId.contains("s1") ||
+          rId.contains("green") ||
+          rId.contains("เขียว")) {
+        // เลือก polyline ตาม PKY config ที่ Manager กำหนดไว้
+        path = isGreenPKYActive() ? _routePaths['S1-PM'] : _routePaths['S1-AM'];
+      } else if (rId.contains("s2") ||
+          rId.contains("red") ||
+          rId.contains("แดง")) {
+        path = _routePaths['S2'];
+      } else if (rId.contains("s3") ||
+          rId.contains("blue") ||
+          rId.contains("น้ำเงิน") ||
+          rId.contains("ict")) {
+        path = _routePaths['S3'];
+      }
+
+      if (path != null && path.isNotEmpty) {
+        double minDistance = double.infinity;
+        const distance = Distance();
+
+        // Find distance to closest point on path (Approximate)
+        for (var point in path) {
+          final d = distance.as(LengthUnit.Meter, bus.position, point);
+          if (d < minDistance) {
+            minDistance = d;
+          }
+        }
+
+        if (minDistance > _offRouteThresholdMeters) {
+          debugPrint(
+            "⚠️ ALERT: Bus ${bus.name} (Route ${bus.routeId}) is OFF-ROUTE by ${minDistance.toStringAsFixed(1)} m!",
+          );
+
+          // Trigger Notification (Rate limited: once per minute per bus)
+          final lastAlert = _lastOffRouteAlert[bus.id];
+          if (lastAlert == null ||
+              DateTime.now().difference(lastAlert).inMinutes >= 1) {
+            _lastOffRouteAlert[bus.id] = DateTime.now();
+
+            // "Notify Manager" -> Log to Firestore
+            try {
+              FirebaseFirestore.instance.collection('off_route_logs').add({
+                'bus_id': bus.id,
+                'bus_name': bus.name,
+                'driver_name': bus.driverName,
+                'route_id': bus.routeId,
+                'deviation_meters': minDistance,
+                'timestamp': FieldValue.serverTimestamp(),
+                'status': 'off-route',
+                'location': {
+                  'lat': bus.position.latitude,
+                  'lng': bus.position.longitude,
+                },
+              });
+              debugPrint("📝 Logged off-route event to Firestore for Manager.");
+            } catch (e) {
+              debugPrint("❌ Failed to log off-route event: $e");
+            }
+
+            // ALSO Show Local Notification (Alert) - BUT ONLY FOR MANAGERS
+            if (_isCurrentUserManager()) {
+              String driverInfo = bus.driverName.isNotEmpty
+                  ? " (คนขับ: ${bus.driverName})"
+                  : "";
+              NotificationService.showNotification(
+                id: bus.id.hashCode,
+                title: "⚠️ แจ้งเตือนรถออกนอกเส้นทาง!",
+                body:
+                    "รถ ${bus.name}$driverInfo (สาย ${bus.routeId}) เบี่ยงออกไป ${minDistance.toStringAsFixed(0)} เมตร",
+                payload: "off_route_${bus.id}",
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  bool _isCurrentUserManager() {
+    final user = FirebaseAuth.instance.currentUser;
+    // Hardcoded list from LoginPage (Ideally should be in a shared config)
+    const managerEmails = ['admin@upbus.com', 'manager@upbus.com'];
+    return user != null &&
+        user.email != null &&
+        managerEmails.contains(user.email);
+  }
+
+  /// ปิด service (เรียกตอน dispose app)
+  @override
+  void dispose() {
+    _busSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _routeConfigSubscription?.cancel();
+    super.dispose();
+  }
+}

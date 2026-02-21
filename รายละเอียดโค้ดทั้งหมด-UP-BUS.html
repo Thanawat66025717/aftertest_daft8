@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>รายละเอียดโค้ดทั้งหมด UP BUS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Sarabun', sans-serif;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #1a1a2e;
+    background: #fff;
+    padding: 30px 40px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #6c3483;
+    border-bottom: 3px solid #6c3483;
+    padding-bottom: 8px;
+    margin: 25px 0 15px 0;
+    page-break-after: avoid;
+  }
+
+  h2 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #2c3e50;
+    border-bottom: 2px solid #d5d8dc;
+    padding-bottom: 5px;
+    margin: 22px 0 10px 0;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #7d3c98;
+    margin: 15px 0 8px 0;
+    page-break-after: avoid;
+  }
+
+  h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2980b9;
+    margin: 10px 0 5px 0;
+  }
+
+  p {
+    margin: 6px 0;
+    text-align: justify;
+  }
+
+  strong {
+    color: #2c3e50;
+  }
+
+  ul, ol {
+    margin: 5px 0 5px 20px;
+  }
+
+  li {
+    margin: 3px 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 12px;
+    page-break-inside: avoid;
+  }
+
+  th {
+    background: #6c3483;
+    color: white;
+    font-weight: 600;
+    padding: 6px 10px;
+    text-align: left;
+    border: 1px solid #5b2c6f;
+  }
+
+  td {
+    padding: 5px 10px;
+    border: 1px solid #d5d8dc;
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) {
+    background: #f8f4fc;
+  }
+
+  tr:hover {
+    background: #eee4f5;
+  }
+
+  code {
+    font-family: 'Fira Code', monospace;
+    font-size: 11.5px;
+    background: #f0ecf5;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #6c3483;
+  }
+
+  pre {
+    background: #2d2d3f;
+    color: #e0e0e0;
+    padding: 12px 15px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 8px 0;
+    font-size: 11px;
+    line-height: 1.5;
+    page-break-inside: avoid;
+  }
+
+  pre code {
+    background: none;
+    color: #e0e0e0;
+    padding: 0;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid #d5d8dc;
+    margin: 18px 0;
+  }
+
+  blockquote {
+    border-left: 3px solid #7d3c98;
+    background: #f8f4fc;
+    padding: 8px 15px;
+    margin: 8px 0;
+    font-size: 12px;
+    color: #555;
+    border-radius: 0 5px 5px 0;
+  }
+
+  /* Print styles */
+  @media print {
+    body {
+      padding: 15px 20px;
+      font-size: 11px;
+    }
+    h1 { font-size: 18px; margin: 15px 0 10px 0; }
+    h2 { font-size: 14px; margin: 15px 0 8px 0; }
+    h3 { font-size: 12px; }
+    table { font-size: 10px; }
+    pre { font-size: 9.5px; padding: 8px 10px; }
+    code { font-size: 10px; }
+    blockquote { font-size: 10.5px; }
+
+    h1, h2, h3 { page-break-after: avoid; }
+    table, pre, blockquote { page-break-inside: avoid; }
+    tr { page-break-inside: avoid; }
+  }
+
+  /* Page header for print */
+  @page {
+    margin: 1.5cm;
+    @top-center {
+      content: "UP BUS — รายละเอียดโค้ดทั้งหมด";
+      font-size: 9px;
+      color: #999;
+    }
+  }
+</style>
+</head>
+<body>
+<h1 id="up-bus">📋 รายละเอียดโค้ดทั้งหมดในโปรเจกต์ UP BUS</h1>
+<p>โปรเจกต์ <strong>Flutter</strong> สำหรับแอปติดตามรถบัส "UP BUS" ใช้ <strong>Firebase</strong> (Firestore, Realtime Database, Auth) เป็น Backend</p>
+<h2 id="_1">สถาปัตยกรรมโปรเจกต์</h2>
+<div class="codehilite"><pre><span></span><code>lib/
+├── main.dart                    (68 บรรทัด) - จุดเริ่มต้นแอป
+├── login_page.dart              (273 บรรทัด) - หน้าล็อกอิน
+├── upbus-page.dart              (1,373 บรรทัด) - หน้าหลัก แผนที่ Live
+├── busstop-page.dart            (819 บรรทัด) - หน้าป้ายรถ
+├── busstop_map_page.dart        (269 บรรทัด) - แผนที่ป้ายรถ
+├── route-page.dart              (253 บรรทัด) - หน้าเส้นทาง
+├── plan-page.dart               (1,512 บรรทัด) - หน้าวางแผนเดินทาง
+├── feedback-page.dart           (356 บรรทัด) - หน้า Feedback
+├── sidemenu.dart                (186 บรรทัด) - เมนูด้านข้าง
+├── change_route_page.dart       (624 บรรทัด) - หน้าคนขับเปลี่ยนสาย
+├── manager_page.dart            (1,007 บรรทัด) - หน้าผู้จัดการ
+├── firebase_options.dart        (99 บรรทัด) - ค่า Firebase config
+├── models/
+│   ├── bus_model.dart           (111 บรรทัด) - Model รถบัส + สายรถ
+│   └── bus_route_data.dart      (297 บรรทัด) - ข้อมูลป้ายและเส้นทาง
+├── services/
+│   ├── global_location_service.dart  (426 บรรทัด) - ติดตาม GPS + แจ้งเตือน
+│   ├── notification_service.dart     (118 บรรทัด) - Push Notification
+│   ├── route_planner_service.dart    (641 บรรทัด) - คำนวณเส้นทาง
+│   └── route_service.dart            (71 บรรทัด) - OpenRouteService API
+└── widgets/
+    └── global_debug_bar.dart    (15 บรรทัด) - Debug Wrapper (ปิดแล้ว)
+</code></pre></div>
+
+<hr />
+<h2 id="1-maindart-68">1. <code>main.dart</code> (68 บรรทัด)</h2>
+<p>จุดเริ่มต้นแอป — ตั้งค่า Firebase, Provider, และ Routes</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–21</td>
+<td><strong>Imports</strong></td>
+<td>นำเข้า Flutter, Firebase, Provider, และทุกหน้าของแอป</td>
+</tr>
+<tr>
+<td>22–37</td>
+<td><code>main()</code></td>
+<td>ฟังก์ชันหลัก — <code>WidgetsFlutterBinding.ensureInitialized()</code> → <code>Firebase.initializeApp()</code> → สร้าง <code>GlobalLocationService</code> แล้วห่อด้วย <code>ChangeNotifierProvider</code> → <code>runApp(MyApp())</code></td>
+</tr>
+<tr>
+<td>39–67</td>
+<td><code>MyApp</code> (StatelessWidget)</td>
+<td>กำหนด <code>MaterialApp</code> พร้อม Theme สีม่วง, ปิด debug banner</td>
+</tr>
+<tr>
+<td>43–66</td>
+<td><code>MyApp.build()</code></td>
+<td>กำหนด <strong>Named Routes</strong> ทั้งหมด: <code>/</code> → <code>UpBusHomePage</code>, <code>/busStop</code> → <code>BusStopPage</code>, <code>/route</code> → <code>RoutePage</code>, <code>/plan</code> → <code>PlanPage</code>, <code>/feedback</code> → <code>FeedbackPage</code>, <code>/login</code> → <code>LoginPage</code>, <code>/busStopMap</code> → <code>BusStopMapPage</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-login_pagedart-273">2. <code>login_page.dart</code> (273 บรรทัด)</h2>
+<p>หน้าล็อกอิน Firebase Auth — รองรับบทบาท Driver และ Manager</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–4</td>
+<td><strong>Imports</strong></td>
+<td><code>firebase_auth</code>, <code>change_route_page</code>, <code>manager_page</code></td>
+</tr>
+<tr>
+<td>6–9</td>
+<td><code>LoginPage</code> (StatefulWidget)</td>
+<td>Widget หลักของหน้า login</td>
+</tr>
+<tr>
+<td>11–272</td>
+<td><code>_LoginPageState</code></td>
+<td>State หลัก — มีตัวแปร <code>_emailController</code>, <code>_passwordController</code>, <code>_isLoading</code>, <code>_errorMessage</code></td>
+</tr>
+<tr>
+<td>23–70</td>
+<td><code>_handleLogin()</code></td>
+<td>ล็อกอินด้วย <code>FirebaseAuth.instance.signInWithEmailAndPassword()</code> — ถ้า email ตรงกับรายชื่อ Manager → ไป <code>ManagerPage</code>, ถ้าเป็น Driver → ไป <code>ChangeRoutePage</code>, อื่นๆ → <code>pop()</code> กลับ</td>
+</tr>
+<tr>
+<td>73–271</td>
+<td><code>build()</code></td>
+<td>สร้าง UI ล็อกอิน → พื้นหลังสีม่วง Gradient, ช่อง Email/Password, ปุ่ม "เข้าสู่ระบบ", แสดง error message</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-upbus-pagedart-1373">3. <code>upbus-page.dart</code> (1,373 บรรทัด) ⭐ ไฟล์หลัก</h2>
+<p>หน้าแผนที่ LIVE MAP — แสดงตำแหน่งรถแบบ Real-time, ป้ายรถ, เส้นทาง, การแจ้งเตือน</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–20</td>
+<td><strong>Imports</strong></td>
+<td><code>flutter_map</code>, <code>latlong2</code>, <code>cloud_firestore</code>, <code>firebase_database</code>, <code>geolocator</code>, <code>provider</code>, <code>notification_service</code>, <code>global_location_service</code>, <code>sidemenu</code>, <code>flutter_map_animations</code></td>
+</tr>
+<tr>
+<td>21</td>
+<td><code>selectedBusStopId</code></td>
+<td>ตัวแปร Global เก็บ ID ป้ายที่เลือก</td>
+</tr>
+<tr>
+<td>22–27</td>
+<td><code>UpBusHomePage</code> (StatefulWidget)</td>
+<td>Widget หน้าหลัก</td>
+</tr>
+<tr>
+<td>29–1372</td>
+<td><code>_UpBusHomePageState</code></td>
+<td>State หลัก — ตัวแปรสำคัญ: <code>_mapController</code>, <code>_routePolylines</code>, <code>_busMarkers</code>, <code>_busStopMarkers</code>, <code>_activeFilters</code>, <code>_isNotificationsEnabled</code> ฯลฯ</td>
+</tr>
+<tr>
+<td>48–59</td>
+<td><code>_getBusColor(String)</code></td>
+<td>แปลงชื่อสี ("Green"/"Red"/"Blue") → <code>Color</code> object</td>
+</tr>
+<tr>
+<td>62–73</td>
+<td><code>_getBusIconAsset(String)</code></td>
+<td>แปลงชื่อสี → path ไฟล์ไอคอนรถ</td>
+</tr>
+<tr>
+<td>75–86</td>
+<td><code>_getRouteNameTh(String)</code></td>
+<td>แปลงชื่อสี → ชื่อสายภาษาไทย (เช่น "สายหน้ามอ")</td>
+</tr>
+<tr>
+<td>89–93</td>
+<td><code>initState()</code></td>
+<td>เรียก <code>_loadAllRoutes()</code> และ <code>_initializeServices()</code></td>
+</tr>
+<tr>
+<td>100–127</td>
+<td><code>_loadAllRoutes()</code></td>
+<td>โหลดเส้นทางจาก GeoJSON (3 สาย: Green, Red, Blue) + ดึงป้ายรถจาก Firestore + เริ่ม listener ตำแหน่งรถจาก Realtime Database</td>
+</tr>
+<tr>
+<td>129–144</td>
+<td><code>_parseGeoJson(String, Color)</code></td>
+<td>อ่านไฟล์ GeoJSON จาก assets → แปลงเป็น <code>Polyline</code></td>
+</tr>
+<tr>
+<td>146–170</td>
+<td><code>_filterRoutes(int)</code></td>
+<td>กรองเส้นทาง — index 0=ทุกสาย, 1=Green, 2=Red, 3=Blue, toggle เปิด/ปิดแต่ละสาย</td>
+</tr>
+<tr>
+<td>172–176</td>
+<td><code>_initializeServices()</code></td>
+<td>เรียก <code>GlobalLocationService.initialize()</code> + <code>NotificationService.initialize()</code></td>
+</tr>
+<tr>
+<td>179–181</td>
+<td><code>dispose()</code></td>
+<td>ปิด map controller</td>
+</tr>
+<tr>
+<td>186–781</td>
+<td><code>build()</code></td>
+<td>สร้าง UI หลัก → <strong>Stack</strong>: <code>FlutterMap</code> (แผนที่), ปุ่มกรองสาย (Green/Red/Blue), Floating Action Buttons (กลับตำแหน่ง/เลือกจุดหมาย/แจ้งเตือน), Proximity Alert Box, TopBar, BottomBar, SideMenu</td>
+</tr>
+<tr>
+<td>785–807</td>
+<td><code>_routeButton(...)</code></td>
+<td>สร้างปุ่มกรองสายรถ (วงกลมสี)</td>
+</tr>
+<tr>
+<td>809–841</td>
+<td><code>_buildTopBar(context)</code></td>
+<td>AppBar บนสุด — โลโก้ "LIVE MAP", ปุ่ม Hamburger Menu</td>
+</tr>
+<tr>
+<td>843–865</td>
+<td><code>_floatingMapIcon(...)</code></td>
+<td>สร้าง Floating Icon บนแผนที่ (GPS, Notification, Destination)</td>
+</tr>
+<tr>
+<td>867–945</td>
+<td><code>_showDestinationSelectionDialog()</code></td>
+<td>Dialog เลือกจุดหมายปลายทาง — ดึงป้ายจาก Firestore → <code>AlertDialog</code> พร้อม <code>ListView</code></td>
+</tr>
+<tr>
+<td>947–952</td>
+<td><code>_goToMyLocation()</code></td>
+<td>ขอพิกัด GPS ผู้ใช้ → เลื่อนแผนที่ไปตำแหน่งปัจจุบัน</td>
+</tr>
+<tr>
+<td>954–956</td>
+<td><code>_onNotificationIconTap()</code></td>
+<td>กดปุ่มแจ้งเตือน → เปิด <code>_showRouteSelectionDialog()</code></td>
+</tr>
+<tr>
+<td>958–1057</td>
+<td><code>_showRouteSelectionDialog()</code></td>
+<td>Dialog เลือกสายแจ้งเตือน — ทุกสาย/เฉพาะสี + ปุ่มปิดแจ้งเตือน + ปุ่มเลือกจุดหมาย</td>
+</tr>
+<tr>
+<td>1059–1086</td>
+<td><code>_routeSelectionTile(...)</code></td>
+<td>สร้าง ListTile สำหรับเลือกสายแจ้งเตือน</td>
+</tr>
+<tr>
+<td>1088–1096</td>
+<td><code>_showNotificationSnackBar(String)</code></td>
+<td>แสดง SnackBar ยืนยันเปิดแจ้งเตือน</td>
+</tr>
+<tr>
+<td>1098–1297</td>
+<td><code>_buildProximityAlertBox(service)</code></td>
+<td>กล่องแจ้งเตือนรถใกล้ถึง — แสดงชื่อรถ, ระยะทาง, ETA countdown, animation กระพริบ, ปุ่มปิด</td>
+</tr>
+<tr>
+<td>1299–1323</td>
+<td><code>_buildBottomBar()</code></td>
+<td>Navigation Bar ด้านล่าง — 5 ไอคอน (Map, BusStop, Route, Plan, Feedback)</td>
+</tr>
+<tr>
+<td>1325–1371</td>
+<td><code>_bottomNavItem(index, icon, label)</code></td>
+<td>สร้างแต่ละไอคอนใน Bottom Navigation</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-busstop-pagedart-819">4. <code>busstop-page.dart</code> (819 บรรทัด)</h2>
+<p>หน้ารายการป้ายรถ — แสดงป้ายแยกตามสาย พร้อมสถานะรถกำลังจอดอยู่</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–5</td>
+<td><strong>Imports</strong> + <code>enum BusLine</code></td>
+<td>นำเข้า Firestore, กำหนด enum <code>BusLine { yellow, red, blue }</code></td>
+</tr>
+<tr>
+<td>7–12</td>
+<td><code>BusStopPage</code> (StatefulWidget)</td>
+<td>Widget หน้าป้ายรถ</td>
+</tr>
+<tr>
+<td>14–818</td>
+<td><code>_BusStopPageState</code></td>
+<td>State หลัก — ตัวแปร: <code>_selectedLine</code>, <code>_busStopDocs</code>, <code>_activeBusStops</code>, <code>_realtimeSubscription</code></td>
+</tr>
+<tr>
+<td>51–55</td>
+<td><code>dispose()</code></td>
+<td>ยกเลิก Realtime Database subscription</td>
+</tr>
+<tr>
+<td>58–83</td>
+<td><code>didChangeDependencies()</code></td>
+<td>ดึงข้อมูลป้ายรถจาก Firestore + ฟัง Realtime Database สำหรับตำแหน่งรถปัจจุบัน</td>
+</tr>
+<tr>
+<td>85–106</td>
+<td><code>_handleRouteIdSwitch(routeData)</code></td>
+<td>ตรวจสอบว่ารถอยู่ที่ป้ายไหน — หาป้ายที่ใกล้ที่สุดจากพิกัด GPS</td>
+</tr>
+<tr>
+<td>108–110</td>
+<td><code>_onSelectLine(BusLine)</code></td>
+<td>เปลี่ยนสายที่เลือก (<code>setState</code>)</td>
+</tr>
+<tr>
+<td>113–473</td>
+<td><code>build()</code></td>
+<td>UI หลัก → TopBar, ปุ่มเลือกสาย (วงกลมสี 3 สี), <code>StreamBuilder</code> ฟังข้อมูล Firestore/RTDB → รายการป้ายรถ</td>
+</tr>
+<tr>
+<td>477–509</td>
+<td><code>_buildTopBar(context)</code></td>
+<td>AppBar "ป้ายรถ" + ปุ่มดูแผนที่ป้ายรถ</td>
+</tr>
+<tr>
+<td>511–553</td>
+<td><code>_lineCircle(c, label, sel, tap)</code></td>
+<td>สร้างปุ่มวงกลมเลือกสาย + animation เมื่อ selected</td>
+</tr>
+<tr>
+<td>555–683</td>
+<td><code>_buildBusStopCard(...)</code></td>
+<td>สร้าง Card แต่ละป้าย — ชื่อป้าย, สถานะ (มีรถจอด/ไม่มี), Route Chips, ปุ่มดูบนแผนที่</td>
+</tr>
+<tr>
+<td>686–712</td>
+<td><code>_buildBottomBar()</code></td>
+<td>Bottom Navigation Bar</td>
+</tr>
+<tr>
+<td>714–761</td>
+<td><code>_bottomNavItem(...)</code></td>
+<td>แต่ละ Item ใน Bottom Nav</td>
+</tr>
+<tr>
+<td>764–817</td>
+<td><code>_buildRouteChips(routesData)</code></td>
+<td>สร้าง Chip แสดงสายที่ผ่านป้ายนี้ (เช่น "สาย Green", "สาย Red")</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-busstop_map_pagedart-269">5. <code>busstop_map_page.dart</code> (269 บรรทัด)</h2>
+<p>แผนที่แสดงป้ายรถทั้งหมด — เปิดจากหน้า BusStop</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–4</td>
+<td><strong>Imports</strong></td>
+<td><code>flutter_map</code>, <code>latlong2</code>, <code>cloud_firestore</code></td>
+</tr>
+<tr>
+<td>6–11</td>
+<td><code>BusStopMapPage</code> (StatefulWidget)</td>
+<td>Widget แผนที่ป้ายรถ</td>
+</tr>
+<tr>
+<td>13–268</td>
+<td><code>_BusStopMapPageState</code></td>
+<td>State หลัก — ตัวแปร: <code>_busStopMarkers</code>, <code>_isLoading</code></td>
+</tr>
+<tr>
+<td>21–27</td>
+<td><code>initState()</code></td>
+<td>เรียก <code>_fetchBusStops()</code></td>
+</tr>
+<tr>
+<td>29–53</td>
+<td><code>_fetchBusStops()</code></td>
+<td>ดึงป้ายทั้งหมดจาก Firestore → สร้าง <code>Marker</code> ที่แต่ละตำแหน่ง</td>
+</tr>
+<tr>
+<td>56–76</td>
+<td><code>didChangeDependencies()</code></td>
+<td>ถ้ามี <code>selectedStopId</code> จาก arguments → เลื่อนแผนที่ไปป้ายที่เลือก</td>
+</tr>
+<tr>
+<td>80–130</td>
+<td><code>_buildRouteChips(routesData)</code></td>
+<td>สร้าง Chip แสดงสายที่ผ่านป้ายนั้น</td>
+</tr>
+<tr>
+<td>133–267</td>
+<td><code>build()</code></td>
+<td>UI แผนที่ → <code>FlutterMap</code> พร้อม <code>TileLayer</code> (OpenStreetMap) + <code>MarkerLayer</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-route-pagedart-253">6. <code>route-page.dart</code> (253 บรรทัด)</h2>
+<p>หน้าแสดงเส้นทาง — แสดงรูปภาพเส้นทาง 3 สาย</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–2</td>
+<td><strong>Imports</strong></td>
+<td><code>flutter/material</code>, <code>sidemenu</code></td>
+</tr>
+<tr>
+<td>4–9</td>
+<td><code>RoutePage</code> (StatefulWidget)</td>
+<td>Widget หน้าเส้นทาง</td>
+</tr>
+<tr>
+<td>11–252</td>
+<td><code>_RoutePageState</code></td>
+<td>State — ตัวแปร: <code>_selectedRouteIndex</code>, <code>_routeNames</code>, <code>_routeColors</code>, <code>_routeImages</code></td>
+</tr>
+<tr>
+<td>34–116</td>
+<td><code>build()</code></td>
+<td>UI → TopBar, ปุ่มกรอง 3 สาย, แสดงรูปภาพเส้นทาง + SideMenu</td>
+</tr>
+<tr>
+<td>119–138</td>
+<td><code>_routeFilterButton(label, color, index)</code></td>
+<td>สร้างปุ่มกรองเส้นทาง</td>
+</tr>
+<tr>
+<td>142–174</td>
+<td><code>_buildTopBar(context)</code></td>
+<td>AppBar "เส้นทาง"</td>
+</tr>
+<tr>
+<td>176–200</td>
+<td><code>_buildBottomBar()</code></td>
+<td>Bottom Navigation</td>
+</tr>
+<tr>
+<td>202–251</td>
+<td><code>_bottomNavItem(...)</code></td>
+<td>แต่ละ Item</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-plan-pagedart-1512">7. <code>plan-page.dart</code> (1,512 บรรทัด)</h2>
+<p>หน้าวางแผนเดินทาง — ค้นหาเส้นทางจากต้นทาง→ปลายทาง, แสดงบนแผนที่</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–10</td>
+<td><strong>Imports</strong></td>
+<td><code>cloud_firestore</code>, <code>flutter_map</code>, <code>latlong2</code>, <code>route_planner_service</code></td>
+</tr>
+<tr>
+<td>12–17</td>
+<td><code>PlanPage</code> (StatefulWidget)</td>
+<td>Widget หน้าวางแผน</td>
+</tr>
+<tr>
+<td>19–1511</td>
+<td><code>_PlanPageState</code></td>
+<td>State หลัก — ตัวแปรเยอะ: <code>_mapController</code>, <code>_fromStopId</code>/<code>_toStopId</code>, <code>_routeResults</code>, <code>_routePolylines</code>, <code>_routeMarkers</code>, <code>_allBusStops</code>, <code>_detailedRoutes</code></td>
+</tr>
+<tr>
+<td>51–54</td>
+<td><code>initState()</code></td>
+<td>เรียก <code>_loadRouteGeoJson()</code> และ <code>_loadDetailedRoutePlan()</code></td>
+</tr>
+<tr>
+<td>56–80</td>
+<td><code>_loadRouteGeoJson()</code></td>
+<td>โหลด GeoJSON 3 เส้นทาง → เก็บพิกัดทุกจุด สำหรับ draw polyline</td>
+</tr>
+<tr>
+<td>82–118</td>
+<td><code>_loadDetailedRoutePlan()</code></td>
+<td>ดึงป้ายรถจาก Firestore → จับคู่กับ internal stop ID ผ่าน <code>RoutePlannerService.mapFirebaseIdToStopId()</code></td>
+</tr>
+<tr>
+<td>120–136</td>
+<td><code>_parseGeoJsonToPoints(assetPath)</code></td>
+<td>อ่าน GeoJSON → List ของ <code>LatLng</code></td>
+</tr>
+<tr>
+<td>139–158</td>
+<td><code>_findMatchingSegmentPoints(from, to)</code></td>
+<td>หาจุด GeoJSON ที่ตรงกับช่วงป้ายต้นทาง-ปลายทาง</td>
+</tr>
+<tr>
+<td>161–291</td>
+<td><code>build()</code></td>
+<td>UI → TopBar, Search Input (from/to dropdown), ปุ่มค้นหา, <code>FlutterMap</code>, Route Result Cards, SideMenu</td>
+</tr>
+<tr>
+<td>294–354</td>
+<td><code>_onSearchBusRoute()</code></td>
+<td>กดปุ่มค้นหา → เรียก <code>RoutePlannerService.findAllRoutes()</code> → <code>_drawBusRoute()</code> + <code>_addRouteMarkers()</code></td>
+</tr>
+<tr>
+<td>356–430</td>
+<td><code>_drawBusRoute(RouteResult)</code></td>
+<td>วาดเส้นเส้นทางบนแผนที่ — จับคู่ segment กับ GeoJSON coordinates → สร้าง <code>Polyline</code></td>
+</tr>
+<tr>
+<td>432–522</td>
+<td><code>_addRouteMarkers()</code></td>
+<td>เพิ่ม Marker บนแผนที่ — ป้ายต้นทาง, ปลายทาง, จุดเปลี่ยนสาย</td>
+</tr>
+<tr>
+<td>524–607</td>
+<td><code>_createRouteStopMarker(...)</code></td>
+<td>สร้าง Marker สำหรับแต่ละป้าย (ไอคอน + ชื่อ + สี)</td>
+</tr>
+<tr>
+<td>609–632</td>
+<td><code>_getStopCoords(stopId)</code></td>
+<td>ดึงพิกัดจาก internal data หรือ Firestore</td>
+</tr>
+<tr>
+<td>634–674</td>
+<td><code>_matchesStopId(name, stopId)</code></td>
+<td>จับคู่ชื่อป้ายกับ ID (fuzzy matching)</td>
+</tr>
+<tr>
+<td>676–692</td>
+<td><code>_getCoordsFromFirebase(docId)</code></td>
+<td>ดึงพิกัดจาก Firestore document</td>
+</tr>
+<tr>
+<td>695–765</td>
+<td><code>_buildRouteResultCards()</code></td>
+<td>สร้าง Card ทุกตัวเลือก — แนะนำ/ตัวเลือกที่ 2,3...</td>
+</tr>
+<tr>
+<td>767–989</td>
+<td><code>_buildSingleRouteCard(result, isRec, idx)</code></td>
+<td>สร้าง Card แต่ละเส้นทาง — แสดงจำนวนป้าย, สายที่ใช้, timeline, time note</td>
+</tr>
+<tr>
+<td>991–1093</td>
+<td><code>_buildRouteTimeline(result)</code></td>
+<td>สร้าง Timeline แนวตั้ง — แสดง node ต้นทาง → จุดเปลี่ยน → ปลายทาง</td>
+</tr>
+<tr>
+<td>1095–1170</td>
+<td><code>_buildTimelineNode(...)</code></td>
+<td>สร้างแต่ละ Node ใน timeline (วงกลมสี + ชื่อป้าย)</td>
+</tr>
+<tr>
+<td>1172–1220</td>
+<td><code>_buildTimelineLine(...)</code></td>
+<td>สร้างเส้นเชื่อมใน timeline (สีของสาย + ชื่อสาย + จำนวนป้าย)</td>
+</tr>
+<tr>
+<td>1223–1267</td>
+<td><code>_buildDropdown(...)</code></td>
+<td>สร้าง Dropdown เลือกป้ายต้นทาง/ปลายทาง</td>
+</tr>
+<tr>
+<td>1269–1300</td>
+<td><code>_buildTopBar()</code></td>
+<td>AppBar "แพลน"</td>
+</tr>
+<tr>
+<td>1302–1374</td>
+<td><code>_buildBottomBar()</code> + <code>_bottomNavItem()</code></td>
+<td>Bottom Navigation</td>
+</tr>
+<tr>
+<td>1378–1447</td>
+<td><code>_buildFullSearchInput()</code></td>
+<td>ส่วน UI เลือกต้นทาง-ปลายทาง แบบเต็ม (2 dropdown + ปุ่มค้นหา + ปุ่มสลับ)</td>
+</tr>
+<tr>
+<td>1449–1510</td>
+<td><code>_buildCompactSearchHeader()</code></td>
+<td>ส่วน UI ย่อ — โชว์ "A → B" กดเพื่อแก้ไข</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-feedback-pagedart-356">8. <code>feedback-page.dart</code> (356 บรรทัด)</h2>
+<p>หน้าส่ง Feedback — ร้องเรียน + ให้คะแนน</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–5</td>
+<td><strong>Imports</strong> + <code>enum FeedbackMode</code></td>
+<td><code>{ complain, rating }</code></td>
+</tr>
+<tr>
+<td>7–12</td>
+<td><code>FeedbackPage</code> (StatefulWidget)</td>
+<td>Widget หน้า Feedback</td>
+</tr>
+<tr>
+<td>14–355</td>
+<td><code>_FeedbackPageState</code></td>
+<td>State — ตัวแปร: <code>_mode</code>, <code>_messageController</code>, <code>_rating</code></td>
+</tr>
+<tr>
+<td>25–28</td>
+<td><code>dispose()</code></td>
+<td>ปิด <code>_messageController</code></td>
+</tr>
+<tr>
+<td>31–185</td>
+<td><code>build()</code></td>
+<td>UI → TopBar, ปุ่มสลับ Complain/Rating, TextArea ข้อความ, Star Rating (ถ้าเป็น rating mode), ปุ่มส่ง</td>
+</tr>
+<tr>
+<td>187–230</td>
+<td><code>_onSubmit()</code></td>
+<td>ส่ง Feedback ไป Firestore collection <code>'feedback'</code> — เก็บ type, message, rating, timestamp</td>
+</tr>
+<tr>
+<td>232–263</td>
+<td><code>_buildTopBar()</code></td>
+<td>AppBar "Feedback"</td>
+</tr>
+<tr>
+<td>265–278</td>
+<td><code>_modeButton(label, isSelected, onTap)</code></td>
+<td>ปุ่มสลับโหมด Complain/Rating</td>
+</tr>
+<tr>
+<td>281–354</td>
+<td><code>_buildBottomBar()</code> + <code>_bottomNavItem()</code></td>
+<td>Bottom Navigation</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9-sidemenudart-186">9. <code>sidemenu.dart</code> (186 บรรทัด)</h2>
+<p>เมนูด้านข้าง (Drawer) — แสดงตามสิทธิ์ผู้ใช้</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–6</td>
+<td><strong>Imports</strong></td>
+<td><code>firebase_auth</code>, <code>shared_preferences</code>, <code>change_route_page</code>, <code>manager_page</code></td>
+</tr>
+<tr>
+<td>8–13</td>
+<td><code>SideMenu</code> (StatefulWidget)</td>
+<td>Widget เมนู</td>
+</tr>
+<tr>
+<td>15–185</td>
+<td><code>_SideMenuState</code></td>
+<td>State — กำหนดรายชื่อ <code>driverEmails</code> และ <code>managerEmails</code></td>
+</tr>
+<tr>
+<td>26–184</td>
+<td><code>build()</code></td>
+<td>สร้าง <code>Drawer</code> → Header (โปรไฟล์ + email), เมนูตามบทบาท: ผู้จัดการ → "หน้าผู้จัดการ", คนขับ → "จัดการเดินรถ", ไม่ได้ login → "เข้าสู่ระบบ", ล็อกอินแล้ว → "Logout" (ล้าง SharedPreferences + signOut)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10-change_route_pagedart-624">10. <code>change_route_page.dart</code> (624 บรรทัด)</h2>
+<p>หน้าคนขับรถ — เลือกเบอร์รถ + เปลี่ยนสาย</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–4</td>
+<td><strong>Imports</strong></td>
+<td><code>firebase_database</code>, <code>shared_preferences</code></td>
+</tr>
+<tr>
+<td>6–11</td>
+<td><code>ChangeRoutePage</code> (StatefulWidget)</td>
+<td>Widget หน้าจัดการเดินรถ</td>
+</tr>
+<tr>
+<td>13–623</td>
+<td><code>_ChangeRoutePageState</code></td>
+<td>State — ตัวแปร: <code>_selectedRoute</code>, <code>_selectedBus</code>, <code>_driverName</code>, <code>_busStatusMap</code>, <code>_myActiveBus</code></td>
+</tr>
+<tr>
+<td>45–52</td>
+<td><code>initState()</code></td>
+<td>เรียก <code>_checkSavedDriverName()</code> + <code>_listenToBusStatusRealtime()</code></td>
+</tr>
+<tr>
+<td>55–69</td>
+<td><code>_checkSavedDriverName()</code></td>
+<td>ดึงชื่อคนขับจาก <code>SharedPreferences</code> — ถ้าไม่มี แสดง Dialog ให้กรอก</td>
+</tr>
+<tr>
+<td>72–142</td>
+<td><code>_showDriverNameDialog()</code></td>
+<td>Dialog ให้กรอกชื่อ → บันทึกลง SharedPreferences</td>
+</tr>
+<tr>
+<td>144–214</td>
+<td><code>_listenToBusStatusRealtime()</code></td>
+<td>ฟัง Realtime Database path <code>'GPS'</code> → อัปเดตสถานะรถทุกคัน (ว่างหรือมีคนขับ)</td>
+</tr>
+<tr>
+<td>217–286</td>
+<td><code>_submitData()</code></td>
+<td>จองรถ → เขียนข้อมูล <code>driverName</code>, <code>routeColor</code> ไป Realtime Database path <code>GPS/{busId}</code></td>
+</tr>
+<tr>
+<td>289–357</td>
+<td><code>_releaseBus()</code></td>
+<td>ปล่อยรถ → ลบข้อมูล <code>driverName</code>, <code>routeColor</code> ออกจาก RTDB</td>
+</tr>
+<tr>
+<td>359–365</td>
+<td><code>_getRouteName(colorValue)</code></td>
+<td>แปลง color id → ชื่อสาย ("Green" → "สายหน้ามอ")</td>
+</tr>
+<tr>
+<td>367–369</td>
+<td><code>_formatBusName(busId)</code></td>
+<td>แปลง "bus_1" → "รถเบอร์ 1"</td>
+</tr>
+<tr>
+<td>372–622</td>
+<td><code>build()</code></td>
+<td>UI → AppBar, สถานะปัจจุบัน (ถ้าขับอยู่), Dropdown เลือกสาย, Dropdown เลือกรถ (แสดง available/ไม่ว่าง), ปุ่มยืนยัน, รายการรถทั้งหมดพร้อมสถานะ</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-manager_pagedart-1007">11. <code>manager_page.dart</code> (1,007 บรรทัด)</h2>
+<p>หน้าผู้จัดการ — 2 Tab: Feedback Report + Driver Report</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–5</td>
+<td><strong>Imports</strong></td>
+<td><code>firebase_auth</code>, <code>cloud_firestore</code>, <code>firebase_database</code></td>
+</tr>
+<tr>
+<td>7–12</td>
+<td><code>ManagerPage</code> (StatefulWidget)</td>
+<td>Widget หน้าจัดการ</td>
+</tr>
+<tr>
+<td>14–1006</td>
+<td><code>_ManagerPageState</code></td>
+<td>State — ตัวแปร: <code>_tabController</code>, <code>_feedbackFilter</code>, <code>_feedbackRouteFilter</code></td>
+</tr>
+<tr>
+<td>27–30</td>
+<td><code>initState()</code></td>
+<td>สร้าง <code>TabController(length: 2)</code></td>
+</tr>
+<tr>
+<td>33–36</td>
+<td><code>dispose()</code></td>
+<td>ปิด TabController</td>
+</tr>
+<tr>
+<td>38–43</td>
+<td><code>_handleLogout()</code></td>
+<td>ออกจากระบบ + กลับหน้าหลัก</td>
+</tr>
+<tr>
+<td>46–75</td>
+<td><code>build()</code></td>
+<td>UI → AppBar พร้อม TabBar (📝 Feedback / 🚌 คนขับ), TabBarView</td>
+</tr>
+<tr>
+<td>77–299</td>
+<td><code>_buildFeedbackTab()</code></td>
+<td><strong>Tab 1</strong> — ดึง Feedback จาก Firestore → Filter (ทั้งหมด/ร้องเรียน/ให้คะแนน) + Filter ตามสาย → แสดง Card แต่ละ feedback พร้อมดาว rating</td>
+</tr>
+<tr>
+<td>301–628</td>
+<td><code>_buildDriverTab()</code></td>
+<td><strong>Tab 2</strong> — ดึงข้อมูลรถจาก Realtime Database path <code>'GPS'</code> → แสดงรายการคนขับ พร้อมสถานะ active/offline, สายที่วิ่ง, เบอร์รถ</td>
+</tr>
+<tr>
+<td>630–658</td>
+<td><code>_filterChip(...)</code></td>
+<td>สร้าง FilterChip สำหรับกรอง Feedback</td>
+</tr>
+<tr>
+<td>660–695</td>
+<td><code>_routeFilterChip(...)</code></td>
+<td>สร้าง FilterChip สำหรับกรองตามสาย</td>
+</tr>
+<tr>
+<td>697–818</td>
+<td><code>_showFeedbackDetail(...)</code></td>
+<td>Dialog แสดงรายละเอียด Feedback</td>
+</tr>
+<tr>
+<td>820–988</td>
+<td><code>_showDriverDetail(...)</code></td>
+<td>Dialog แสดงรายละเอียดคนขับ</td>
+</tr>
+<tr>
+<td>990–1005</td>
+<td><code>_infoRow(icon, label, value)</code></td>
+<td>Helper สร้างแถวข้อมูล</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="12-modelsbus_modeldart-111">12. <code>models/bus_model.dart</code> (111 บรรทัด)</h2>
+<p>Model ข้อมูลรถบัส + สายรถ</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3–63</td>
+<td><code>class Bus</code></td>
+<td>Model รถบัส — Fields: <code>id</code>, <code>position</code> (LatLng), <code>name</code>, <code>routeId</code>, <code>distanceToUser</code>, <code>driverName</code>, <code>routeColor</code></td>
+</tr>
+<tr>
+<td>25–51</td>
+<td><code>Bus.fromFirebase(id, data)</code></td>
+<td>Factory — แปลงข้อมูลจาก Realtime DB → <code>Bus</code> object, มี logic จัดการ nested data</td>
+</tr>
+<tr>
+<td>52–62</td>
+<td><code>Bus.copyWithDistance(dist)</code></td>
+<td>สร้าง Bus ใหม่พร้อม distance ที่คำนวณแล้ว</td>
+</tr>
+<tr>
+<td>66–110</td>
+<td><code>class BusRoute</code></td>
+<td>Model สายรถ — Fields: <code>id</code>, <code>name</code>, <code>shortName</code>, <code>colorValue</code></td>
+</tr>
+<tr>
+<td>79–100</td>
+<td><code>BusRoute.allRoutes</code> (static)</td>
+<td>รายการสาย 3 สาย: Green (สายหน้ามอ), Red (สายหอพัก), Blue (สายประตูงาม)</td>
+</tr>
+<tr>
+<td>101–109</td>
+<td><code>BusRoute.fromId(id)</code> (static)</td>
+<td>ค้นหาสายจาก ID</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="13-modelsbus_route_datadart-297">13. <code>models/bus_route_data.dart</code> (297 บรรทัด)</h2>
+<p>ข้อมูลป้ายรถและเส้นทาง (Hard-coded)</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2–20</td>
+<td><code>class BusStopData</code></td>
+<td>Model ป้ายรถ — Fields: <code>id</code>, <code>name</code>, <code>aliases</code> (ชื่ออื่น)</td>
+</tr>
+<tr>
+<td>23–78</td>
+<td><code>class BusRouteData</code></td>
+<td>Model เส้นทาง — Fields: <code>id</code>, <code>name</code>, <code>color</code>, <code>colorValue</code>, <code>stops</code> (ลำดับป้าย), <code>startHour</code>/<code>endHour</code> (เวลาให้บริการ)</td>
+</tr>
+<tr>
+<td>42–55</td>
+<td><code>isActiveAt(DateTime)</code></td>
+<td>ตรวจสอบว่าสายนี้วิ่งในเวลาที่กำหนดไหม</td>
+</tr>
+<tr>
+<td>57–60</td>
+<td><code>indexOfStop(stopId)</code></td>
+<td>หา index ของป้ายในสาย</td>
+</tr>
+<tr>
+<td>62–65</td>
+<td><code>lastIndexOfStop(stopId)</code></td>
+<td>หา index สุดท้ายของป้าย</td>
+</tr>
+<tr>
+<td>67–74</td>
+<td><code>allIndicesOfStop(stopId)</code></td>
+<td>หาทุก index ของป้าย (ป้ายอาจปรากฏหลายครั้งบนเส้นทางวน)</td>
+</tr>
+<tr>
+<td>76–77</td>
+<td><code>hasStop(stopId)</code></td>
+<td>ตรวจว่าป้ายมีในสายไหม</td>
+</tr>
+<tr>
+<td>81–195</td>
+<td><code>class BusStops</code></td>
+<td>ข้อมูลป้ายทั้งหมดในระบบ (static <code>all</code>) — ป้ายเช่น PKY, CE, AGRI, SCI ฯลฯ</td>
+</tr>
+<tr>
+<td>172–179</td>
+<td><code>BusStops.fromId(id)</code></td>
+<td>ค้นหาป้ายจาก ID</td>
+</tr>
+<tr>
+<td>181–194</td>
+<td><code>BusStops.fromName(name)</code></td>
+<td>ค้นหาป้ายจากชื่อ (fuzzy match, ค้นจากชื่อหลักและ aliases)</td>
+</tr>
+<tr>
+<td>198–296</td>
+<td><code>class BusRoutes</code></td>
+<td>เส้นทางทั้ง 3 สาย (static <code>all</code>) — แต่ละสายมีลำดับป้าย, เวลาให้บริการ</td>
+</tr>
+<tr>
+<td>286–289</td>
+<td><code>BusRoutes.getActiveRoutes(time)</code></td>
+<td>หาสายที่วิ่งในเวลานั้น</td>
+</tr>
+<tr>
+<td>291–295</td>
+<td><code>BusRoutes.getRoutesWithStop(stopId)</code></td>
+<td>หาสายที่ผ่านป้ายนี้</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="14-servicesglobal_location_servicedart-426">14. <code>services/global_location_service.dart</code> (426 บรรทัด)</h2>
+<p>Service หลัก — ติดตาม GPS ผู้ใช้ + ตำแหน่งรถ + แจ้งเตือนรถใกล้ถึง</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1–12</td>
+<td><strong>Imports</strong></td>
+<td><code>geolocator</code>, <code>latlong2</code>, <code>firebase_database</code>, <code>notification_service</code>, <code>bus_model</code></td>
+</tr>
+<tr>
+<td>13–425</td>
+<td><code>class GlobalLocationService extends ChangeNotifier</code></td>
+<td>Service — ตัวแปรสำคัญ: <code>_userPosition</code>, <code>_isNotifyEnabled</code>, <code>_notifyRouteId</code>, <code>_destinationName</code>, <code>_closestBus</code>, <code>_alertStage</code>, <code>_busStops</code>, <code>_busList</code></td>
+</tr>
+<tr>
+<td>55–68</td>
+<td><code>initialize()</code></td>
+<td>เริ่มต้น — ขอ permission GPS → <code>_fetchBusStops()</code> → <code>_listenToBusLocation()</code> → <code>_startLocationTracking()</code></td>
+</tr>
+<tr>
+<td>70–79</td>
+<td><code>setNotifyEnabled(bool, routeId)</code></td>
+<td>เปิด/ปิดแจ้งเตือน + ตั้งค่าสายที่ต้องการ</td>
+</tr>
+<tr>
+<td>81–103</td>
+<td><code>setDestination(name, routeId)</code></td>
+<td>ตั้งจุดหมาย — ค้นหาจาก <code>_busStops</code> + filter สายที่ notify</td>
+</tr>
+<tr>
+<td>118–142</td>
+<td><code>_fetchBusStops()</code></td>
+<td>ดึงป้ายรถจาก Firestore collection <code>'busstop'</code></td>
+</tr>
+<tr>
+<td>144–177</td>
+<td><code>_listenToBusLocation()</code></td>
+<td>ฟัง RTDB path <code>'GPS'</code> → แปลงเป็น <code>Bus</code> objects → กรองเฉพาะรถที่มีคนขับ → เรียก <code>_updateClosestBus()</code></td>
+</tr>
+<tr>
+<td>179–219</td>
+<td><code>_startLocationTracking()</code></td>
+<td>เริ่ม <code>Geolocator.getPositionStream()</code> → อัปเดต <code>_userPosition</code> → เรียก <code>_updateClosestBus()</code></td>
+</tr>
+<tr>
+<td>221–359</td>
+<td><code>_updateClosestBus()</code></td>
+<td><strong>Logic หลัก</strong> — คำนวณรถที่ใกล้ที่สุด, คำนวณ ETA, ตรวจสอบ alert stage (5นาที/3นาที/1นาที/วินาที) → เรียก <code>_triggerAlert()</code> ถ้าถึงเกณฑ์</td>
+</tr>
+<tr>
+<td>361–375</td>
+<td><code>_triggerAlert(bus, dist, eta, msg)</code></td>
+<td>แจ้งเตือน → เรียก <code>NotificationService.alertBusNearby()</code></td>
+</tr>
+<tr>
+<td>377–397</td>
+<td><code>getClosestStopInfo()</code></td>
+<td>คำนวณป้ายที่ใกล้ผู้ใช้ที่สุด (ชื่อ + ระยะทาง)</td>
+</tr>
+<tr>
+<td>399–417</td>
+<td><code>findClosestStop()</code></td>
+<td>คืน Map ข้อมูลป้ายที่ใกล้ที่สุด</td>
+</tr>
+<tr>
+<td>419–424</td>
+<td><code>dispose()</code></td>
+<td>ยกเลิก subscription ทั้งหมด</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="15-servicesnotification_servicedart-118">15. <code>services/notification_service.dart</code> (118 บรรทัด)</h2>
+<p>จัดการ Push Notification + สั่นเตือน</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5–117</td>
+<td><code>class NotificationService</code></td>
+<td>Static class ทั้งหมด</td>
+</tr>
+<tr>
+<td>11–31</td>
+<td><code>initialize()</code></td>
+<td>ตั้งค่า <code>FlutterLocalNotificationsPlugin</code> (Android + iOS)</td>
+</tr>
+<tr>
+<td>33–41</td>
+<td><code>calculateEtaSeconds(dist, speed)</code></td>
+<td>คำนวณ ETA จากระยะทาง ÷ ความเร็ว (ค่าเริ่มต้น 35 km/h)</td>
+</tr>
+<tr>
+<td>43–54</td>
+<td><code>formatEta(etaSeconds)</code></td>
+<td>แปลง seconds → "X นาที Y วินาที" หรือ "ถึงแล้ว"</td>
+</tr>
+<tr>
+<td>56–92</td>
+<td><code>showBusNearbyNotification(...)</code></td>
+<td>แสดง Push Notification — channel "Bus Proximity Alerts"</td>
+</tr>
+<tr>
+<td>94–100</td>
+<td><code>vibrate()</code></td>
+<td>สั่นเตือน 1 วินาที</td>
+</tr>
+<tr>
+<td>102–116</td>
+<td><code>alertBusNearby(...)</code></td>
+<td>รวม notification + vibrate เข้าด้วยกัน (<code>Future.wait</code>)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="16-servicesroute_planner_servicedart-641">16. <code>services/route_planner_service.dart</code> (641 บรรทัด)</h2>
+<p>คำนวณเส้นทางเดินทาง — รองรับ Direct + Transfer (เปลี่ยนสาย)</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5–27</td>
+<td><code>class RouteResult</code></td>
+<td>ผลลัพธ์เส้นทาง — Fields: <code>segments</code>, <code>totalStops</code>, <code>isTransfer</code>, <code>message</code>, <code>timeNote</code>, <code>isDirect</code></td>
+</tr>
+<tr>
+<td>30–47</td>
+<td><code>class RouteSegment</code></td>
+<td>ช่วงเส้นทาง — Fields: <code>routeId</code>, <code>routeName</code>, <code>fromStop</code>, <code>toStop</code>, <code>stopCount</code>, <code>color</code>, <code>intermediateStops</code></td>
+</tr>
+<tr>
+<td>50–640</td>
+<td><code>class RoutePlannerService</code></td>
+<td>Service หลัก</td>
+</tr>
+<tr>
+<td>51–66</td>
+<td><code>findRoute(from, to, time)</code></td>
+<td>หาเส้นทางที่ดีที่สุด → เรียก <code>findAllRoutes()</code> แล้วเลือกตัวแรก</td>
+</tr>
+<tr>
+<td>68–179</td>
+<td><code>findAllRoutes(from, to, time)</code></td>
+<td>หาทุกเส้นทาง → <code>_findAllDirectRoutes()</code> + <code>_findAllTransferRoutes()</code> → เรียงตาม score → กำจัด duplicate</td>
+</tr>
+<tr>
+<td>181–198</td>
+<td><code>_calculateWeightedScore(result)</code></td>
+<td>คำนวณคะแนน: จำนวนป้าย + penalty วนรถ + penalty เปลี่ยนสาย</td>
+</tr>
+<tr>
+<td>200–221</td>
+<td><code>_getTimeNoteForRoute(route, result)</code></td>
+<td>สร้างหมายเหตุเวลา (เช่น "สายนี้วิ่ง 6:00-18:00")</td>
+</tr>
+<tr>
+<td>223–254</td>
+<td><code>_getTimeNoteForTransfer(result)</code></td>
+<td>สร้างหมายเหตุเวลาสำหรับเส้นทางเปลี่ยนสาย</td>
+</tr>
+<tr>
+<td>256–263</td>
+<td><code>_isCircular(route)</code></td>
+<td>ตรวจว่าเป็น circular route (ป้ายแรก = ป้ายสุดท้าย)</td>
+</tr>
+<tr>
+<td>265–278</td>
+<td><code>_calculateStopCount(from, to, total, isCirc)</code></td>
+<td>คำนวณจำนวนป้ายระหว่าง 2 index</td>
+</tr>
+<tr>
+<td>280–301</td>
+<td><code>_getStopsInBetween(route, from, to, isCirc)</code></td>
+<td>ดึง list ป้ายระหว่างทาง</td>
+</tr>
+<tr>
+<td>303–320</td>
+<td><code>_generateMessageFromSegments(segments)</code></td>
+<td>สร้างข้อความอธิบาย ("ขึ้นสาย X ที่ A → ลงที่ B")</td>
+</tr>
+<tr>
+<td>322–367</td>
+<td><code>_splitIfPassingTerminal(segments)</code></td>
+<td>แบ่ง segment ถ้าผ่าน PKY (ต้องเปลี่ยนรถ)</td>
+</tr>
+<tr>
+<td>369–421</td>
+<td><code>_findAllDirectRoutes(from, to, routes)</code></td>
+<td>หาเส้นทางตรง — ตรวจทุกสายว่ามีทั้ง from และ to ไหม, รองรับ circular route</td>
+</tr>
+<tr>
+<td>423–571</td>
+<td><code>_findAllTransferRoutes(from, to, routes)</code></td>
+<td>หาเส้นทางเปลี่ยนสาย — หาจุดเปลี่ยน + คำนวณ stopCount ทั้ง 2 ช่วง</td>
+</tr>
+<tr>
+<td>573–581</td>
+<td><code>_findTransferPoints(route1, route2)</code></td>
+<td>หาป้ายที่อยู่ในทั้ง 2 สาย</td>
+</tr>
+<tr>
+<td>583–639</td>
+<td><code>mapFirebaseIdToStopId(fbId, name)</code></td>
+<td>แปลง Firebase Document ID → internal stop ID</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="17-servicesroute_servicedart-71">17. <code>services/route_service.dart</code> (71 บรรทัด)</h2>
+<p>เรียก OpenRouteService API คำนวณระยะทางถนนจริง</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6–63</td>
+<td><code>class RouteService</code></td>
+<td>Static class — API Key + Base URL</td>
+</tr>
+<tr>
+<td>16–57</td>
+<td><code>getRoadDistance(from, to)</code></td>
+<td>คำนวณระยะทาง — เช็ค cache ก่อน → เรียก API → cache ผลลัพธ์ (30 วินาที)</td>
+</tr>
+<tr>
+<td>59–62</td>
+<td><code>clearCache()</code></td>
+<td>ล้าง cache</td>
+</tr>
+<tr>
+<td>65–70</td>
+<td><code>class _CachedDistance</code></td>
+<td>เก็บ distance + timestamp</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="18-widgetsglobal_debug_bardart-15">18. <code>widgets/global_debug_bar.dart</code> (15 บรรทัด)</h2>
+<p>Wrapper Widget (ปิดการใช้งานแล้ว)</p>
+<table>
+<thead>
+<tr>
+<th>บรรทัด</th>
+<th>ฟังก์ชัน/คลาส</th>
+<th>คำอธิบาย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4–14</td>
+<td><code>GlobalDebugBarWrapper</code> (StatelessWidget)</td>
+<td>รับ <code>child</code> → return <code>child</code> ตรงๆ (ไม่มี debug bar แล้ว)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="dependencies-pubspecyaml">Dependencies หลัก (จาก <code>pubspec.yaml</code>)</h2>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>เวอร์ชัน</th>
+<th>ใช้สำหรับ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>firebase_core</code></td>
+<td>^4.4.0</td>
+<td>เริ่มต้น Firebase</td>
+</tr>
+<tr>
+<td><code>cloud_firestore</code></td>
+<td>^6.1.0</td>
+<td>ฐานข้อมูล Firestore (ป้ายรถ, Feedback)</td>
+</tr>
+<tr>
+<td><code>firebase_database</code></td>
+<td>^12.1.1</td>
+<td>Realtime Database (ตำแหน่ง GPS รถ)</td>
+</tr>
+<tr>
+<td><code>firebase_auth</code></td>
+<td>^6.1.4</td>
+<td>ล็อกอิน (Email/Password)</td>
+</tr>
+<tr>
+<td><code>flutter_map</code></td>
+<td>^8.2.2</td>
+<td>แผนที่ (OpenStreetMap)</td>
+</tr>
+<tr>
+<td><code>latlong2</code></td>
+<td>^0.9.1</td>
+<td>คลาสพิกัด LatLng</td>
+</tr>
+<tr>
+<td><code>geolocator</code></td>
+<td>^14.0.2</td>
+<td>ติดตาม GPS ผู้ใช้</td>
+</tr>
+<tr>
+<td><code>flutter_local_notifications</code></td>
+<td>^18.0.1</td>
+<td>Push Notification</td>
+</tr>
+<tr>
+<td><code>vibration</code></td>
+<td>^2.0.1</td>
+<td>สั่นเตือน</td>
+</tr>
+<tr>
+<td><code>provider</code></td>
+<td>^6.1.5+1</td>
+<td>State Management</td>
+</tr>
+<tr>
+<td><code>shared_preferences</code></td>
+<td>^2.2.2</td>
+<td>เก็บข้อมูล local</td>
+</tr>
+<tr>
+<td><code>http</code></td>
+<td>^1.2.0</td>
+<td>เรียก API</td>
+</tr>
+<tr>
+<td><code>flutter_map_animations</code></td>
+<td>0.9.0</td>
+<td>Animation แผนที่</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_2">📐 สูตรและการคำนวณที่ใช้ในโปรเจกต์ (อธิบายแบบภาษาคน)</h2>
+<h3 id="1-eta">1. คำนวณเวลาถึงโดยประมาณ (ETA)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/notification_service.dart#L35-L41">notification_service.dart</a>
+📍 บรรทัดที่ <strong>35–41</strong> (ฟังก์ชัน <code>calculateEtaSeconds</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> เราอยากรู้ว่า "รถจะมาถึงอีกกี่วินาที" ก็เอา <strong>ระยะทาง หารด้วย ความเร็ว</strong> เลยครับ เป็นสูตรฟิสิกส์ ม.ต้นเลย คือ <strong>เวลา = ระยะทาง ÷ ความเร็ว</strong></p>
+<ul>
+<li>กำหนดให้รถบัสวิ่งเฉลี่ย <strong>35 กม./ชม.</strong></li>
+<li>แต่ระยะทางเราเป็น<strong>เมตร</strong> ดังนั้นต้องแปลงความเร็วเป็น <strong>เมตร/วินาที</strong> ก่อน</li>
+<li>วิธีแปลง (บรรทัด <strong>39</strong>): เอา 35 คูณ 1000 (เป็นเมตร) แล้วหารด้วย 3600 (เป็นวินาที) = ประมาณ <strong>9.72 ม./วินาที</strong></li>
+<li>คำนวณ ETA (บรรทัด <strong>40</strong>): เอาระยะทางหารด้วยความเร็วแล้วปัดเศษ</li>
+</ul>
+<p><strong>ตัวอย่าง:</strong> ถ้ารถอยู่ห่าง 500 เมตร → 500 ÷ 9.72 = ประมาณ <strong>51 วินาที</strong> คือรถจะมาถึงใน 51 วินาทีครับ</p>
+<hr />
+<h3 id="2-2">2. คำนวณระยะทาง (2 วิธี)</h3>
+<h4 id="1-haversine">วิธีที่ 1: Haversine — หาระยะทาง "เส้นตรง" บนโลกกลม</h4>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/global_location_service.dart#L225-L237">global_location_service.dart</a>
+📍 บรรทัดที่ <strong>225</strong> (สร้าง Distance object) และ <strong>233–235</strong> (ใช้คำนวณจริง)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> เราใช้ library <code>latlong2</code> ที่มีคลาส <code>Distance()</code> ช่วยคำนวณให้ เบื้องหลังมันใช้สูตรที่เรียกว่า <strong>Haversine</strong> ซึ่งเป็นสูตรคำนวณระยะทางระหว่าง 2 จุดบนพื้นผิวโลกครับ</p>
+<ul>
+<li>รับค่า <strong>ละติจูด-ลองจิจูด</strong> ของ 2 จุด (เช่น ตำแหน่งผู้ใช้ กับ ตำแหน่งรถ)</li>
+<li>คำนวณระยะทางแบบ "ลากเส้นตรง" ผ่านพื้นโลกที่โค้ง</li>
+<li>ได้ผลลัพธ์เป็น <strong>เมตร</strong></li>
+<li><strong>ข้อจำกัด:</strong> มันเป็นระยะ "เส้นตรง" ไม่ใช่ระยะตามถนนจริง</li>
+</ul>
+<h4 id="2-api">วิธีที่ 2: เรียก API คำนวณระยะทาง "ตามถนนจริง"</h4>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/route_service.dart#L18-L57">route_service.dart</a>
+📍 บรรทัดที่ <strong>18–57</strong> (ฟังก์ชัน <code>getRoadDistance</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> เราส่งพิกัด 2 จุดไปให้ <strong>OpenRouteService API</strong> แล้วมันจะคำนวณระยะทาง "ตามถนนจริง" กลับมาให้เป็นเมตร เหมือน Google Maps คำนวณเส้นทางให้</p>
+<blockquote>
+<p>📍 Fallback อยู่บรรทัด <strong>229–235</strong> ใน <code>global_location_service.dart</code></p>
+</blockquote>
+<p><strong>Fallback (แผนสำรอง):</strong> ถ้า API ล่มหรือตอบช้า (บรรทัด <strong>233–235</strong>) → ระบบจะใช้ Haversine (เส้นตรง) แทนเลยครับ ไม่ให้แอปค้าง</p>
+<hr />
+<h3 id="3-4-alert-stage">3. ระบบแจ้งเตือนแบบ 4 ขั้น (Alert Stage)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/global_location_service.dart#L321-L359">global_location_service.dart</a>
+📍 บรรทัดที่ <strong>321–359</strong> (อยู่ใน <code>_updateClosestBus</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> พอคำนวณ ETA ได้แล้ว (จากสูตรข้อ 1) เราก็เอามาเทียบว่า "เข้าเกณฑ์ไหน" ถ้าถึงเกณฑ์ก็แจ้งเตือนครับ เป็นแบบ <strong>ขั้นบันได</strong> ดังนี้:</p>
+<table>
+<thead>
+<tr>
+<th>ขั้น</th>
+<th>เงื่อนไข</th>
+<th>แจ้งเตือนว่า</th>
+<th>📍 บรรทัด</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>ETA ≤ 5 นาที (300 วินาที)</td>
+<td>"อีก 5 นาทีจะถึง"</td>
+<td><strong>353–358</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>ETA ≤ 3 นาที (180 วินาที)</td>
+<td>"อีก 3 นาทีจะถึง"</td>
+<td><strong>346–351</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>ETA ≤ 1 นาที (60 วินาที)</td>
+<td>"อีก 1 นาทีจะถึง"</td>
+<td><strong>339–344</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>ระยะห่าง ≤ 250 เมตร</td>
+<td>"รถใกล้มาถึงแล้ว!"</td>
+<td><strong>327–337</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>จุดสำคัญ (บรรทัด 325):</strong> แต่ละขั้นจะ <strong>แจ้งเตือนแค่ครั้งเดียวต่อคัน</strong> ครับ ไม่งั้นมันจะ spam ผู้ใช้ — ระบบใช้ตัวแปร <code>_lastAlertStage</code> จำไว้ว่าคันนี้แจ้งถึงขั้นไหนแล้ว ถ้าแจ้งขั้น 2 ไปแล้ว จะไม่แจ้งซ้ำ จะข้ามไปแจ้งขั้น 3 เลย</p>
+<hr />
+<h3 id="4-direction-detection">4. เช็คว่ารถวิ่งเข้าหาเราหรือวิ่งหนี (Direction Detection)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/global_location_service.dart#L263-L307">global_location_service.dart</a>
+📍 บรรทัดที่ <strong>263–307</strong> (อยู่ใน <code>_updateClosestBus</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> เวลาเราเลือกจุดหมาย ระบบจะไม่แจ้งเตือนรถทุกคันครับ มันจะ <strong>เช็คก่อนว่ารถวิ่งเข้าหาจุดหมายเราหรือวิ่งออก</strong> ด้วยวิธีง่ายๆ คือ:</p>
+<ul>
+<li>บรรทัด <strong>270–274</strong>: วัดระยะจาก <strong>รถถึงจุดหมาย</strong> (ไม่ใช่ถึงตัวเรา)</li>
+<li>บรรทัด <strong>276–277</strong>: ดึง <strong>ค่าระยะรอบก่อน</strong> มาเทียบ</li>
+<li>บรรทัด <strong>280</strong>: ถ้าระยะ <strong>ลดลง</strong> หรือ <strong>เท่าเดิม</strong> → รถกำลัง <strong>วิ่งเข้าหา</strong> จุดหมาย ✅</li>
+<li>บรรทัด <strong>287</strong>: ถ้าระยะ <strong>เพิ่มขึ้น</strong> → รถ <strong>วิ่งหนี</strong> จุดหมาย ❌ → ข้ามไป</li>
+<li>บรรทัด <strong>306</strong>: อัพเดตค่าระยะเก็บไว้สำหรับรอบหน้า</li>
+</ul>
+<p>เหมือนเราดูว่าเพื่อนเดินเข้ามาหา หรือเดินออกไป ก็ดูจากระยะว่ามันใกล้ขึ้นหรือไกลขึ้นครับ</p>
+<hr />
+<h3 id="5-weighted-score">5. คำนวณคะแนนเส้นทาง (Weighted Score)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/route_planner_service.dart#L182-L198">route_planner_service.dart</a>
+📍 บรรทัดที่ <strong>182–198</strong> (ฟังก์ชัน <code>_calculateWeightedScore</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> ระบบหาเส้นทางได้หลายเส้น แล้วจะเลือกแนะนำเส้นไหน? ก็ใช้ <strong>ระบบให้คะแนน</strong> ครับ ยิ่งคะแนน <strong>น้อย</strong> ยิ่ง <strong>ดี</strong></p>
+<p>สูตร: <strong>คะแนน = จำนวนป้ายที่ต้องนั่ง + ค่าปรับ</strong></p>
+<p>ค่าปรับมี 2 ตัว:
+- <strong>ค่าปรับวนรถ</strong> (บรรทัด <strong>186–188</strong>): ถ้าเส้นทางต้องนั่งวนรอบ → โดน <strong>+20</strong> คะแนนเลย (หนักมาก เพราะเสียเวลา)
+- <strong>ค่าปรับต่อรถ</strong> (บรรทัด <strong>192–194</strong>): ถ้าต้องเปลี่ยนสาย → โดน <strong>+5</strong> คะแนนต่อครั้ง (พอประมาณ เพราะต้องรอรถใหม่)
+- <strong>รวมคะแนน</strong> (บรรทัด <strong>196–197</strong>): นับจำนวนป้ายทั้งหมด + penalty = คะแนนรวม</p>
+<p><strong>ตัวอย่าง:</strong>
+- <strong>เส้นทาง A:</strong> นั่ง S1 ตรงไป 8 ป้าย → คะแนน = 8 + 0 + 0 = <strong>8</strong> ✅ ดีสุด
+- <strong>เส้นทาง B:</strong> นั่ง S1 ต่อ S2 รวม 5 ป้าย แต่ต่อรถ 1 ครั้ง → คะแนน = 5 + 0 + 5 = <strong>10</strong>
+- <strong>เส้นทาง C:</strong> นั่ง S1 วนลูป 6 ป้าย → คะแนน = 6 + 20 + 0 = <strong>26</strong> ❌ แย่สุด</p>
+<p>→ ระบบเรียงจากน้อยไปมาก แล้วแนะนำ <strong>เส้นทาง A</strong> ก่อน</p>
+<hr />
+<h3 id="6-linear-vs-circular">6. นับจำนวนป้ายระหว่างทาง (Linear vs Circular)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/route_planner_service.dart#L266-L278">route_planner_service.dart</a>
+📍 บรรทัดที่ <strong>266–278</strong> (ฟังก์ชัน <code>_calculateStopCount</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> เวลานับว่า "จากป้าย A ถึงป้าย B ผ่านกี่ป้าย" มี 2 กรณีครับ:</p>
+<p><strong>กรณีที่ 1 — ไปทางเดียว (บรรทัด 272–273):</strong> ถ้าป้าย A อยู่ก่อน B ในลำดับ ก็แค่ <strong>เอาตำแหน่ง B ลบ A</strong>
+- ตัวอย่าง: A อยู่ตำแหน่งที่ 2, B อยู่ตำแหน่งที่ 5 → 5 - 2 = <strong>3 ป้าย</strong></p>
+<p><strong>กรณีที่ 2 — วนลูป (บรรทัด 274–276):</strong> ถ้า A อยู่ <strong>หลัง</strong> B ในลำดับ แต่สายนี้เป็นวงกลม ก็ต้อง "นั่งวนข้ามจุดเริ่มต้น"
+- วิธีนับ: นับจาก A ไปจนสุดสาย แล้วบวกจากจุดเริ่มต้นมาถึง B
+- สูตร: <strong>(จำนวนป้ายทั้งหมด - 1 - ตำแหน่ง A) + ตำแหน่ง B</strong>
+- ตัวอย่าง: สาย S2 มี 13 ป้าย, A อยู่ตำแหน่ง 10, B อยู่ตำแหน่ง 3 → (12 - 10) + 3 = <strong>5 ป้าย</strong></p>
+<hr />
+<h3 id="7-circular-route">7. เช็คว่าสายนี้เป็นวงกลมไหม (Circular Route)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/route_planner_service.dart#L260-L263">route_planner_service.dart</a>
+📍 บรรทัดที่ <strong>260–263</strong> (ฟังก์ชัน <code>_isCircular</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> ดูง่ายมากครับ บรรทัด <strong>262</strong> เช็คว่า <strong>ป้ายแรกกับป้ายสุดท้ายเป็นป้ายเดียวกันไหม</strong> → ถ้าใช่ก็เป็นเส้นทางวงกลม
+- <strong>S2:</strong> เริ่มที่ PKY → วนไป → กลับมา PKY → ✅ เป็นวงกลม
+- <strong>S1-AM:</strong> เริ่มที่หน้ามอ → วนไป → กลับมาหน้ามอ → ✅ เป็นวงกลม</p>
+<hr />
+<h3 id="8-cache-api">8. ระบบ Cache (จำค่าเก่าไว้ ไม่ต้องเรียก API ซ้ำ)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/route_service.dart#L12-L28">route_service.dart</a>
+📍 บรรทัดที่ <strong>13</strong> (ประกาศ cache map), <strong>14</strong> (กำหนด TTL 30 วินาที), <strong>23–28</strong> (เช็คว่า cache ยังมีอายุไหม)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> ทุกครั้งที่คำนวณระยะทางจาก API จะ <strong>จำผลไว้ 30 วินาที</strong> ครับ (บรรทัด <strong>14</strong>) ถ้าถามซ้ำภายใน 30 วินาที → เอาค่าเก่าตอบเลย (บรรทัด <strong>26</strong>) ไม่ต้องเรียก API ใหม่ ช่วย <strong>ประหยัดจำนวน API call</strong> และทำให้แอป <strong>เร็วขึ้น</strong></p>
+<p>วิธีเช็ค (บรรทัด <strong>25</strong>): เอา <strong>เวลาปัจจุบัน ลบ เวลาที่ cache ไว้</strong> ถ้าน้อยกว่า 30 วินาที → ใช้ค่าเก่าได้ ถ้ามากกว่า → หมดอายุ ต้องเรียก API ใหม่</p>
+<hr />
+<h3 id="9-operating-hours">9. เช็คเวลาให้บริการรถ (Operating Hours)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/models/bus_route_data.dart#L43-L55">bus_route_data.dart</a>
+📍 บรรทัดที่ <strong>43–55</strong> (ฟังก์ชัน <code>isActiveAt</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> แต่ละสายมีเวลาให้บริการไม่เหมือนกัน ระบบต้องเช็คว่า "ตอนนี้สายนี้วิ่งอยู่ไหม"</p>
+<ul>
+<li><strong>กรณีปกติ</strong> (บรรทัด <strong>47–48</strong>): เช่น S1-AM 05:00–14:00 ดูง่ายครับ ชั่วโมงปัจจุบันต้อง <strong>อยู่ระหว่าง 5 ถึง 14</strong></li>
+<li><strong>กรณีข้ามวัน</strong> (บรรทัด <strong>49–51</strong>): เช่น S1-PM 14:00–00:00 ต้องคิดต่างนิดนึง คือชั่วโมงปัจจุบันต้อง <strong>≥ 14 หรือ &lt; 0</strong> (ก่อนเที่ยงคืน)</li>
+<li><strong>กรณีวิ่งตลอด</strong> (บรรทัด <strong>44</strong>): ถ้า startHour กับ endHour เป็น null → return true เลย (เช่น S2, S3)</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>สาย</th>
+<th>เริ่ม</th>
+<th>จบ</th>
+<th>หมายเหตุ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1-AM</td>
+<td>05:00</td>
+<td>14:00</td>
+<td>ไม่ผ่าน PKY</td>
+</tr>
+<tr>
+<td>S1-PM</td>
+<td>14:00</td>
+<td>00:00</td>
+<td>ผ่าน PKY (ข้ามวัน)</td>
+</tr>
+<tr>
+<td>S2</td>
+<td>—</td>
+<td>—</td>
+<td>วิ่งตลอดวัน</td>
+</tr>
+<tr>
+<td>S3</td>
+<td>—</td>
+<td>—</td>
+<td>วิ่งตลอดวัน</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="10-set-intersection">10. หาจุดเปลี่ยนสาย (Set Intersection)</h3>
+<blockquote>
+<p>📁 ไฟล์: <a href="file:///z:/daft_ani-main/lib/services/route_planner_service.dart#L574-L581">route_planner_service.dart</a>
+📍 บรรทัดที่ <strong>574–581</strong> (ฟังก์ชัน <code>_findTransferPoints</code>)</p>
+</blockquote>
+<p><strong>พูดง่ายๆ:</strong> เวลาจะต่อรถ ต้องหาว่า "ป้ายไหนที่อยู่ในสายทั้ง 2 สาย" วิธีการคือ:
+- บรรทัด <strong>578</strong>: เอาป้ายของสาย 1 มาทำเป็น Set
+- บรรทัด <strong>579</strong>: เอาป้ายของสาย 2 มาทำเป็น Set
+- บรรทัด <strong>580</strong>: เรียก <code>.intersection()</code> หาตัวที่ <strong>ซ้ำกัน</strong> — ทางคณิตเรียกว่า <strong>อินเตอร์เซกชัน</strong> ของ 2 เซตครับ</p>
+<p><strong>ตัวอย่าง:</strong>
+- สาย S1-AM ผ่าน: หน้ามอ, วิศวะ, ประชุม, อธิการ, ศิลปศาสตร์, คณะวิทย์
+- สาย S2 ผ่าน: PKY, UB99, เวียง, สงวน, สาธิต, ศิลปศาสตร์, คณะวิทย์, ประชุม, อธิการ
+- <strong>ป้ายซ้ำกัน</strong> = {ประชุม, อธิการ, ศิลปศาสตร์, คณะวิทย์} → เปลี่ยนสายได้ <strong>4 จุด</strong></p>
+<hr />
+<h2 id="flow">สรุป Flow การทำงานหลัก</h2>
+<div class="codehilite"><pre><span></span><code><span class="nf">graph</span><span class="w"> </span><span class="n">TD</span>
+<span class="w">    </span><span class="n">A</span><span class="p">[</span><span class="s">&quot;main.dart&lt;br/&gt;Firebase.initializeApp()&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">B</span><span class="p">[</span><span class="s">&quot;GlobalLocationService&lt;br/&gt;(Provider)&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">A</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">C</span><span class="p">[</span><span class="s">&quot;MyApp → Routes&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">C</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">D</span><span class="p">[</span><span class="s">&quot;UpBusHomePage&lt;br/&gt;หน้าหลัก แผนที่ Live&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">C</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">E</span><span class="p">[</span><span class="s">&quot;BusStopPage&lt;br/&gt;รายการป้ายรถ&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">C</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">F</span><span class="p">[</span><span class="s">&quot;RoutePage&lt;br/&gt;เส้นทาง&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">C</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">G</span><span class="p">[</span><span class="s">&quot;PlanPage&lt;br/&gt;วางแผนเดินทาง&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">C</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">H</span><span class="p">[</span><span class="s">&quot;FeedbackPage&lt;br/&gt;ส่ง Feedback&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">C</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="n">I</span><span class="p">[</span><span class="s">&quot;LoginPage&lt;br/&gt;ล็อกอิน&quot;</span><span class="p">]</span>
+
+<span class="w">    </span><span class="n">D</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;ดึง GPS รถ&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">J</span><span class="p">[</span><span class="s">&quot;Realtime Database&lt;br/&gt;path: GPS/&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">D</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;ดึงป้าย&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">K</span><span class="p">[</span><span class="s">&quot;Firestore&lt;br/&gt;collection: busstop&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">D</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;GeoJSON&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">L</span><span class="p">[</span><span class="s">&quot;assets/data/&quot;</span><span class="p">]</span>
+
+<span class="w">    </span><span class="n">B</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;ติดตามตำแหน่ง&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">M</span><span class="p">[</span><span class="s">&quot;Geolocator&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">B</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;แจ้งเตือน&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">N</span><span class="p">[</span><span class="s">&quot;NotificationService&quot;</span><span class="p">]</span>
+
+<span class="w">    </span><span class="n">G</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;คำนวณเส้นทาง&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">O</span><span class="p">[</span><span class="s">&quot;RoutePlannerService&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">O</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;ข้อมูลป้าย&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">P</span><span class="p">[</span><span class="s">&quot;bus_route_data.dart&quot;</span><span class="p">]</span>
+
+<span class="w">    </span><span class="n">I</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;Driver&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">Q</span><span class="p">[</span><span class="s">&quot;ChangeRoutePage&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">I</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;Manager&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">R</span><span class="p">[</span><span class="s">&quot;ManagerPage&quot;</span><span class="p">]</span>
+
+<span class="w">    </span><span class="n">Q</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;จองรถ/ปล่อยรถ&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">J</span>
+<span class="w">    </span><span class="n">R</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;ดู Report&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">K</span>
+<span class="w">    </span><span class="n">R</span><span class="w"> </span><span class="o">--&gt;|</span><span class="s">&quot;ดูคนขับ&quot;</span><span class="o">|</span><span class="w"> </span><span class="n">J</span>
+</code></pre></div>
+<footer style="margin-top:30px; padding-top:10px; border-top:2px solid #6c3483; text-align:center; color:#999; font-size:11px;">
+  📋 เอกสารสร้างอัตโนมัติจากโปรเจกต์ UP BUS — ใช้สำหรับอ่านเตรียมสอบ
+</footer>
+</body>
+</html>
