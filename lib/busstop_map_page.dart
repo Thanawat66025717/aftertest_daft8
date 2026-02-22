@@ -5,8 +5,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'services/route_service.dart';
-import 'services/global_location_service.dart';
+import 'package:projectapp/services/route_service.dart';
+import 'package:projectapp/services/global_location_service.dart';
+import 'package:projectapp/models/bus_route_data.dart';
 
 class BusStopMapPage extends StatefulWidget {
   const BusStopMapPage({super.key});
@@ -101,16 +102,16 @@ class _BusStopMapPageState extends State<BusStopMapPage> {
   Future<void> _fetchBusStops() async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('Bus stop')
+          .collection('bus_stops')
           .get();
       final stops = snapshot.docs.map((doc) {
-        final data = doc.data();
+        final stop = BusStopData.fromFirestore(doc);
         return {
-          'id': doc.id,
-          'name': data['name'],
-          'lat': double.tryParse(data['lat'].toString()) ?? 0.0,
-          'long': double.tryParse(data['long'].toString()) ?? 0.0,
-          'route_id': data['route_id'],
+          'id': stop.id,
+          'name': stop.name,
+          'lat': stop.location?.latitude ?? 0.0,
+          'long': stop.location?.longitude ?? 0.0,
+          'route_id': (doc.data())['route_id'],
         };
       }).toList();
 
@@ -526,9 +527,8 @@ class _BusStopMapPageState extends State<BusStopMapPage> {
                       bool isSelected = _selectedStopId == stop['id'];
                       return Marker(
                         point: LatLng(stop['lat'], stop['long']),
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.bottomCenter,
+                        width: 200,
+                        height: 100,
                         child: GestureDetector(
                           onTap: () {
                             setState(() {
@@ -538,14 +538,17 @@ class _BusStopMapPageState extends State<BusStopMapPage> {
                             });
                           },
                           child: Stack(
-                            alignment: Alignment.center,
+                            alignment: Alignment.bottomCenter,
                             clipBehavior: Clip.none,
                             children: [
-                              Image.asset(
-                                'assets/images/bus-stopicon.png',
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.contain,
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Image.asset(
+                                  'assets/images/bus-stopicon.png',
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                               if (isSelected)
                                 Positioned(
@@ -637,7 +640,8 @@ class _BusStopMapPageState extends State<BusStopMapPage> {
                       height: 60,
                       alignment: Alignment.bottomCenter,
                       child: IgnorePointer(
-                        child: Column(
+                        child: Stack(
+                          alignment: Alignment.bottomCenter,
                           children: [
                             const Icon(
                               Icons.location_on,

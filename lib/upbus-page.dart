@@ -2,19 +2,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-// firebase_database removed
 import 'package:cloud_firestore/cloud_firestore.dart';
-// geolocator removed as it is now handled by GlobalLocationService
 import 'package:provider/provider.dart';
-import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
 
 // Import ไฟล์ของคุณเอง (ตรวจสอบ path ให้ถูกต้อง)
-import 'models/bus_model.dart';
+import 'package:projectapp/models/bus_model.dart';
+import 'package:projectapp/models/bus_route_data.dart';
 // route_service removed as it is now handled by GlobalLocationService
-import 'services/notification_service.dart';
-import 'services/global_location_service.dart';
-import 'sidemenu.dart'; // import เมนูข้าง
+import 'package:projectapp/services/notification_service.dart';
+import 'package:projectapp/services/global_location_service.dart';
+import 'package:projectapp/services/route_manager_service.dart';
+import 'package:projectapp/sidemenu.dart'; // import เมนูข้าง
 import 'package:flutter_map_animations/flutter_map_animations.dart';
 
 String? selectedBusStopId;
@@ -35,9 +33,8 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
 
   final MapController _mapController = MapController();
 
-  List<Polyline> _allPolylines = [];
-  List<Polyline> _displayPolylines = [];
-  Polyline? _routeNamorPKY;
+  // Polylines are now generated dynamically in build() from routeManager.allRoutes
+  // to support real-time updates without restarting the app.
   // redundant fields removed
   static const LatLng _kUniversity = LatLng(
     19.03011372185138,
@@ -45,35 +42,76 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
   );
 
   // --- เพิ่มฟังก์ชันแปลงสีและชื่อสาย ---
-  Color _getBusColor(String colorName) {
-    switch (colorName.toLowerCase()) {
+  Color _getBusColor(String routeIdentifier) {
+    try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      // Try to find route by color name or ID
+      final route = routeManager.allRoutes.firstWhere(
+        (r) =>
+            r.routeId.toLowerCase() == routeIdentifier.toLowerCase() ||
+            r.shortName.toLowerCase() == routeIdentifier.toLowerCase(),
+      );
+      return Color(route.colorValue);
+    } catch (_) {}
+
+    switch (routeIdentifier.toLowerCase()) {
       case 'green':
-        return const Color.fromRGBO(68, 182, 120, 1);
+        return const Color(0xFF44B678);
       case 'red':
-        return const Color.fromRGBO(255, 56, 89, 1);
+        return const Color(0xFFFF3859);
       case 'blue':
-        return const Color.fromRGBO(17, 119, 252, 1);
+        return const Color(0xFF1177FC);
       default:
         return Colors.purple;
     }
   }
 
   // ฟังก์ชันเลือกไฟล์รูปไอคอนตามสีสายรถ
-  String _getBusIconAsset(String colorName) {
-    switch (colorName.toLowerCase()) {
-      case 'green':
-        return 'assets/images/bus_green.png';
-      case 'red':
-        return 'assets/images/bus_red.png';
-      case 'blue':
-        return 'assets/images/bus_blue.png';
-      default:
-        return 'assets/images/busiconall.png'; // สี default หรือสีอื่นๆ
+  String _getBusIconAsset(String routeIdentifier) {
+    int? colorValue;
+    try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      final route = routeManager.allRoutes.firstWhere(
+        (r) =>
+            r.routeId.toLowerCase() == routeIdentifier.toLowerCase() ||
+            r.shortName.toLowerCase() == routeIdentifier.toLowerCase(),
+      );
+      colorValue = route.colorValue;
+    } catch (_) {
+      // Fallback matching by identifier name
+      if (routeIdentifier.toLowerCase() == 'green') colorValue = 0xFF44B678;
+      if (routeIdentifier.toLowerCase() == 'red') colorValue = 0xFFFF3859;
+      if (routeIdentifier.toLowerCase() == 'blue') colorValue = 0xFF1177FC;
     }
+
+    if (colorValue == 0xFF44B678) return 'assets/images/bus_green.png';
+    if (colorValue == 0xFFFF3859) return 'assets/images/bus_red.png';
+    if (colorValue == 0xFF1177FC) return 'assets/images/bus_blue.png';
+
+    return 'assets/images/busiconall.png'; // Default purple bus
   }
 
-  String _getRouteNameTh(String colorName) {
-    switch (colorName.toLowerCase()) {
+  String _getRouteNameTh(String routeIdentifier) {
+    try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      final route = routeManager.allRoutes.firstWhere(
+        (r) =>
+            r.routeId.toLowerCase() == routeIdentifier.toLowerCase() ||
+            r.shortName.toLowerCase() == routeIdentifier.toLowerCase(),
+      );
+      return route.name;
+    } catch (_) {}
+
+    switch (routeIdentifier.toLowerCase()) {
       case 'green':
         return 'สายหน้ามอ (สีเขียว)';
       case 'red':
@@ -89,89 +127,79 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
   void initState() {
     super.initState();
     _initializeServices();
-    _loadAllRoutes();
   }
 
   // ... (ฟังก์ชันโหลดเส้นทาง _loadAllRoutes, _parseGeoJson, _filterRoutes คงเดิม) ...
 
   // (ใส่โค้ด _loadAllRoutes, _parseGeoJson, _filterRoutes เดิมของคุณตรงนี้)
-  /// โหลดเส้นทางรถบัสทั้ง 3 สายจากไฟล์ GeoJSON แล้วแปลงเป็น Polyline สำหรับแสดงบนแผนที่
-  /// - สายหน้ามอ (เขียว): โหลด 2 เส้นทาง (ช่วงเช้า bus_route1_pm2 / ช่วงบ่าย bus_route1)
-  /// - สายหอพัก (แดง): โหลดจาก bus_route2
-  /// - สายประตูงาม/ICT (น้ำเงิน): โหลดจาก bus_route3
-  /// หลังโหลดเสร็จจะเก็บไว้ใน _allPolylines และแสดงทั้งหมดเป็นค่าเริ่มต้น
-  Future<void> _loadAllRoutes() async {
-    try {
-      Polyline routeNamor = await _parseGeoJson(
-        'assets/data/bus_route1_pm2.geojson',
-        const Color.fromRGBO(68, 182, 120, 1),
-      );
-      _routeNamorPKY = await _parseGeoJson(
-        'assets/data/bus_route1.geojson',
-        const Color.fromRGBO(68, 182, 120, 1),
-      );
-      Polyline routeHornai = await _parseGeoJson(
-        'assets/data/bus_route2.geojson',
-        const Color.fromRGBO(255, 56, 89, 1),
-      );
-      Polyline routeICT = await _parseGeoJson(
-        'assets/data/bus_route3.geojson',
-        const Color.fromRGBO(17, 119, 252, 1),
-      );
+  // List<Polyline> generation is now moved to build() for dynamic updates.
+  List<Polyline> _generateDisplayPolylines(
+    List<BusRouteData> dynamicRoutes,
+    GlobalLocationService locationService,
+  ) {
+    List<Polyline> newDisplay = [];
+    final isPKYActive = locationService.isGreenPKYActive();
 
-      if (!mounted) return;
-      setState(() {
-        _allPolylines = [routeNamor, routeHornai, routeICT];
-        _displayPolylines = _allPolylines;
-      });
-    } catch (e) {
-      debugPrint("Error loading routes: $e");
+    // 1. Generate all applicable polylines first
+    List<Polyline> allPolylines = [];
+    for (var route in dynamicRoutes) {
+      if (route.pathPoints != null && route.pathPoints!.isNotEmpty) {
+        List<LatLng> points = route.pathPoints!
+            .map((p) => LatLng(p.latitude, p.longitude))
+            .toList();
+        allPolylines.add(
+          Polyline(
+            points: points,
+            color: Color(route.colorValue).withOpacity(1.0),
+            strokeWidth: 4.0,
+          ),
+        );
+      }
     }
-  }
 
-  /// อ่านไฟล์ GeoJSON จาก assets แล้วแปลงพิกัด (coordinates) เป็น Polyline
-  /// - [assetPath]: path ของไฟล์ GeoJSON ใน assets เช่น 'assets/data/bus_route1.geojson'
-  /// - [color]: สีของเส้น Polyline ที่จะวาดบนแผนที่
-  /// ขั้นตอน: อ่านไฟล์ → decode JSON → วนลูปดึง coordinates จาก features ที่เป็น LineString
-  ///         → แปลงเป็น List<LatLng> → สร้าง Polyline พร้อมสีและความหนา 4.0
-  Future<Polyline> _parseGeoJson(String assetPath, Color color) async {
-    String data = await rootBundle.loadString(assetPath);
-    var jsonResult = jsonDecode(data);
-    List<LatLng> points = [];
-    var features = jsonResult['features'] as List;
-    for (var feature in features) {
-      var geometry = feature['geometry'];
-      if (geometry['type'] == 'LineString') {
-        var coordinates = geometry['coordinates'] as List;
-        for (var coord in coordinates) {
-          points.add(LatLng(coord[1], coord[0]));
+    if (allPolylines.isEmpty) return [];
+
+    // 2. Filter based on selected index
+    if (_selectedRouteIndex == 0) {
+      // All
+      for (int i = 0; i < allPolylines.length; i++) {
+        if (i < dynamicRoutes.length) {
+          final route = dynamicRoutes[i];
+          if (route.shortName == 'S1') {
+            if (isPKYActive && route.routeId != 'S1-PM') continue;
+            if (!isPKYActive && route.routeId != 'S1-AM') continue;
+          }
+        }
+        newDisplay.add(allPolylines[i]);
+      }
+    } else {
+      // Group unique routes to map index
+      final uniqueRoutes = <BusRouteData>[];
+      final seenShortNames = <String>{};
+      for (var route in dynamicRoutes) {
+        if (!seenShortNames.contains(route.shortName)) {
+          seenShortNames.add(route.shortName);
+          uniqueRoutes.add(route);
+        }
+      }
+
+      if (_selectedRouteIndex <= uniqueRoutes.length) {
+        final targetShortName = uniqueRoutes[_selectedRouteIndex - 1].shortName;
+        for (int i = 0; i < dynamicRoutes.length; i++) {
+          if (dynamicRoutes[i].shortName == targetShortName) {
+            final route = dynamicRoutes[i];
+            if (route.shortName == 'S1') {
+              if (isPKYActive && route.routeId != 'S1-PM') continue;
+              if (!isPKYActive && route.routeId != 'S1-AM') continue;
+            }
+            if (i < allPolylines.length) {
+              newDisplay.add(allPolylines[i]);
+            }
+          }
         }
       }
     }
-    return Polyline(points: points, color: color, strokeWidth: 4.0);
-  }
-
-  /// กรองเส้นทางที่จะแสดงบนแผนที่ตาม index ของปุ่มที่ผู้ใช้เลือก
-  /// ใช้ isGreenPKYActive() จาก GlobalLocationService แทน hardcode เวลา
-  void _filterRoutes(int index, GlobalLocationService locationService) {
-    if (_allPolylines.isEmpty) return;
-    setState(() {
-      // ถ้า Manager ตั้งค่า PKY mode → ใช้เส้น PKY; ไม่งั้นใช้เส้นปกติ
-      final isPKYActive = locationService.isGreenPKYActive();
-      final currentNamor = isPKYActive
-          ? (_routeNamorPKY ?? _allPolylines[0])
-          : _allPolylines[0];
-
-      if (index == 0) {
-        _displayPolylines = [currentNamor, _allPolylines[1], _allPolylines[2]];
-      } else if (index == 1) {
-        _displayPolylines = [currentNamor];
-      } else if (index == 2) {
-        _displayPolylines = [_allPolylines[1]];
-      } else if (index == 3) {
-        _displayPolylines = [_allPolylines[2]];
-      }
-    });
+    return newDisplay;
   }
 
   Future<void> _initializeServices() async {
@@ -192,17 +220,41 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
   @override
   Widget build(BuildContext context) {
     final locationService = context.watch<GlobalLocationService>();
+    final routeManager = context.watch<RouteManagerService>();
+    final dynamicRoutes = routeManager.allRoutes;
+    final displayPolylines = _generateDisplayPolylines(
+      dynamicRoutes,
+      locationService,
+    );
     final allBuses = locationService.buses;
 
     // Filter buses based on selected route index
+    // [MODIFICATION] Handle grouped shortNames
+    final uniqueRoutes = <BusRouteData>[];
+    final seenShortNames = <String>{};
+    for (var route in dynamicRoutes) {
+      if (!seenShortNames.contains(route.shortName)) {
+        seenShortNames.add(route.shortName);
+        uniqueRoutes.add(route);
+      }
+    }
+
     final buses = allBuses.where((bus) {
       if (_selectedRouteIndex == 0) return true; // Show all
-      if (_selectedRouteIndex == 1)
-        return bus.routeColor.toLowerCase() == 'green';
-      if (_selectedRouteIndex == 2)
-        return bus.routeColor.toLowerCase() == 'red';
-      if (_selectedRouteIndex == 3)
-        return bus.routeColor.toLowerCase() == 'blue';
+
+      if (_selectedRouteIndex <= uniqueRoutes.length) {
+        // เลือกสีของรถให้ตรงกับสีของ route ที่เลือก
+        final targetRoute = uniqueRoutes[_selectedRouteIndex - 1];
+
+        // Check if bus routeId matches ANY route with the same shortName
+        final matchingRoutes = dynamicRoutes
+            .where((r) => r.shortName == targetRoute.shortName)
+            .map((r) => r.routeId.toLowerCase())
+            .toList();
+
+        return matchingRoutes.contains(bus.routeColor.toLowerCase()) ||
+            matchingRoutes.contains(bus.routeId.toLowerCase());
+      }
       return true;
     }).toList();
 
@@ -243,7 +295,7 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
                                       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                   userAgentPackageName: 'com.upbus.app',
                                 ),
-                                PolylineLayer(polylines: _displayPolylines),
+                                PolylineLayer(polylines: displayPolylines),
 
                                 // --- Destination Flag Marker (ธงปักจุดหมาย) ---
                                 if (locationService.destinationPosition != null)
@@ -276,26 +328,106 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
                                     ],
                                   ),
 
-                                // --- Bus Stop Markers (คงเดิม) ---
+                                // --- Bus Stop Markers ---
                                 StreamBuilder(
                                   stream: FirebaseFirestore.instance
-                                      .collection('Bus stop')
+                                      .collection('bus_stops')
                                       .snapshots(),
                                   builder: (context, snapshot) {
                                     if (!snapshot.hasData)
                                       return const MarkerLayer(markers: []);
+
+                                    // 1. แปลงเป็น List ของ BusStopData
+                                    final rawStops = snapshot.data!.docs
+                                        .map(
+                                          (doc) =>
+                                              BusStopData.fromFirestore(doc),
+                                        )
+                                        .toList();
+
+                                    // 2. ลบตัวซ้ำ (Deduplicate) โดยใช้ชื่อ
+                                    // เนื่องจากอาจมีทั้งที่ Import จาก Default และที่พิกัดเพิ่มเอง
+                                    final Map<String, BusStopData> stopMap = {};
+                                    for (var s in rawStops) {
+                                      bool isPlaceholder = s.isPlaceholder;
+
+                                      if (!stopMap.containsKey(s.name)) {
+                                        stopMap[s.name] = s;
+                                      } else {
+                                        // ถ้ามีชื่อซ้ำ ให้เลือกตัวที่ไม่ใช่พิกัดหลอก (ถ้ามี)
+                                        bool existingIsPlaceholder =
+                                            stopMap[s.name]?.isPlaceholder ??
+                                            true;
+                                        if (existingIsPlaceholder &&
+                                            !isPlaceholder) {
+                                          stopMap[s.name] = s;
+                                        }
+                                      }
+                                    }
+                                    List<BusStopData> deduplicatedStops =
+                                        stopMap.values.toList();
+
+                                    // 3. กรองตามสายที่เลือก (Filtering)
+                                    final routeManager = context
+                                        .read<RouteManagerService>();
+                                    final isPKYActive = locationService
+                                        .isGreenPKYActive();
+
+                                    if (_selectedRouteIndex != 0) {
+                                      // หา Route ที่เลือก
+                                      final uniqueRoutes = <BusRouteData>[];
+                                      final seenNames = <String>{};
+                                      for (var r in routeManager.allRoutes) {
+                                        if (!seenNames.contains(r.shortName)) {
+                                          seenNames.add(r.shortName);
+                                          uniqueRoutes.add(r);
+                                        }
+                                      }
+
+                                      if (_selectedRouteIndex <=
+                                          uniqueRoutes.length) {
+                                        final targetShortName =
+                                            uniqueRoutes[_selectedRouteIndex -
+                                                    1]
+                                                .shortName;
+
+                                        // กรองเอาเฉพาะป้ายที่อยู่ในสายที่มี shortName นี้
+                                        deduplicatedStops = deduplicatedStops.where((
+                                          stop,
+                                        ) {
+                                          // เช็คว่าป้ายนี้อยู่ใน S1-AM, S1-PM, S2, หรือ S3 หรือไม่
+                                          return routeManager.allRoutes.any((
+                                            r,
+                                          ) {
+                                            if (r.shortName != targetShortName)
+                                              return false;
+                                            // ถ้าเป็น S1 ให้เช็ค PKY Active ด้วยเพื่อให้ป้ายตรงกับจุดจอดจริงตามเวลา
+                                            if (r.shortName == 'S1') {
+                                              if (isPKYActive &&
+                                                  r.routeId != 'S1-PM')
+                                                return false;
+                                              if (!isPKYActive &&
+                                                  r.routeId != 'S1-AM')
+                                                return false;
+                                            }
+                                            return r.hasStop(stop.id) ||
+                                                r.stops.any(
+                                                  (rs) => rs.name == stop.name,
+                                                );
+                                          });
+                                        }).toList();
+                                      }
+                                    }
+
                                     return MarkerLayer(
-                                      markers: snapshot.data!.docs.map((doc) {
-                                        var data = doc.data();
+                                      markers: deduplicatedStops.map((stop) {
+                                        final lat =
+                                            stop.location?.latitude ?? 0.0;
+                                        final lng =
+                                            stop.location?.longitude ?? 0.0;
+
                                         return Marker(
-                                          point: LatLng(
-                                            double.parse(
-                                              data['lat'].toString(),
-                                            ),
-                                            double.parse(
-                                              data['long'].toString(),
-                                            ),
-                                          ),
+                                          point: LatLng(lat, lng),
                                           width: 200,
                                           height: 100,
                                           child: GestureDetector(
@@ -303,15 +435,16 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
                                               setState(() {
                                                 selectedBusStopId =
                                                     (selectedBusStopId ==
-                                                        doc.id)
+                                                        stop.id)
                                                     ? null
-                                                    : doc.id;
+                                                    : stop.id;
                                               });
                                             },
                                             child: Stack(
                                               alignment: Alignment.bottomCenter,
                                               children: [
-                                                if (selectedBusStopId == doc.id)
+                                                if (selectedBusStopId ==
+                                                    stop.id)
                                                   Positioned(
                                                     top: 0,
                                                     child: Container(
@@ -339,7 +472,7 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
                                                         ],
                                                       ),
                                                       child: Text(
-                                                        data['name'].toString(),
+                                                        stop.name,
                                                         style: const TextStyle(
                                                           color: Colors.black,
                                                           fontSize: 12,
@@ -407,7 +540,7 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
                                             });
                                           },
                                           child: Stack(
-                                            alignment: Alignment.center,
+                                            alignment: Alignment.bottomCenter,
                                             clipBehavior: Clip.none,
                                             children: [
                                               // --- Popup แสดงข้อมูล ---
@@ -586,7 +719,7 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
                                           milliseconds: 1000,
                                         ),
                                         builder: (context, animation) => Stack(
-                                          alignment: Alignment.center,
+                                          alignment: Alignment.bottomCenter,
                                           children: [
                                             Container(
                                               width: 40,
@@ -750,58 +883,30 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
                             isSelected: _selectedRouteIndex == 0,
                             onPressed: () {
                               setState(() => _selectedRouteIndex = 0);
-                              _filterRoutes(
-                                0,
-                                context.read<GlobalLocationService>(),
-                              );
                             },
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: _routeButton(
-                            label: 'หน้ามอ',
-                            color: const Color.fromRGBO(68, 182, 120, 1),
-                            isSelected: _selectedRouteIndex == 1,
-                            onPressed: () {
-                              setState(() => _selectedRouteIndex = 1);
-                              _filterRoutes(
-                                1,
-                                context.read<GlobalLocationService>(),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: _routeButton(
-                            label: 'หอใน',
-                            color: const Color.fromRGBO(255, 56, 89, 1),
-                            isSelected: _selectedRouteIndex == 2,
-                            onPressed: () {
-                              setState(() => _selectedRouteIndex = 2);
-                              _filterRoutes(
-                                2,
-                                context.read<GlobalLocationService>(),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: _routeButton(
-                            label: 'ICT',
-                            color: const Color.fromRGBO(17, 119, 252, 1),
-                            isSelected: _selectedRouteIndex == 3,
-                            onPressed: () {
-                              setState(() => _selectedRouteIndex = 3);
-                              _filterRoutes(
-                                3,
-                                context.read<GlobalLocationService>(),
-                              );
-                            },
-                          ),
-                        ),
+                        ...uniqueRoutes.asMap().entries.map((entry) {
+                          int idx = entry.key + 1; // 1, 2, 3...
+                          var route = entry.value;
+                          return Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 6.0),
+                              child: _routeButton(
+                                label: route.shortName,
+                                color: route.colorValue == 0xFF000000
+                                    ? Colors.grey
+                                    : Color(
+                                        route.colorValue,
+                                      ).withValues(alpha: 1.0),
+                                isSelected: _selectedRouteIndex == idx,
+                                onPressed: () {
+                                  setState(() => _selectedRouteIndex = idx);
+                                },
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ],
                     ),
                   ),
@@ -891,7 +996,7 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -933,12 +1038,23 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
                     final routeId = stop['route_id']?.toString() ?? 'Unknown';
                     // แปลง route_id เป็นสีเพื่อแสดงผล
                     Color routeColor = Colors.grey;
-                    if (routeId.toLowerCase().contains('green'))
-                      routeColor = Colors.green;
-                    else if (routeId.toLowerCase().contains('red'))
-                      routeColor = Colors.red;
-                    else if (routeId.toLowerCase().contains('blue'))
-                      routeColor = Colors.blue;
+                    try {
+                      final routeManager = Provider.of<RouteManagerService>(
+                        context,
+                        listen: false,
+                      );
+                      final route = routeManager.allRoutes.firstWhere(
+                        (r) => r.routeId.toLowerCase() == routeId.toLowerCase(),
+                      );
+                      routeColor = Color(route.colorValue);
+                    } catch (_) {
+                      if (routeId.toLowerCase().contains('green'))
+                        routeColor = Colors.green;
+                      else if (routeId.toLowerCase().contains('red'))
+                        routeColor = Colors.red;
+                      else if (routeId.toLowerCase().contains('blue'))
+                        routeColor = Colors.blue;
+                    }
 
                     final isSelected =
                         globalService.destinationName == stop['name'];
@@ -1045,27 +1161,40 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
               },
             ),
             const Divider(),
-            ...BusRoute.allRoutes.map(
-              (route) => _routeSelectionTile(
-                title: '${route.id} ${route.name}',
-                subtitle: 'แจ้งเตือนเฉพาะสาย ${route.shortName}',
-                color: Color(route.colorValue),
-                icon: Icons.directions_bus,
-                isSelected:
-                    globalService.notifyEnabled &&
-                    globalService.selectedNotifyRouteId == route.id &&
-                    globalService.destinationName == null,
-                onTap: () {
-                  globalService.setDestination(
-                    null,
-                    null,
-                  ); // ล้างค่าปลายทางถ้าเลือกเป็นสาย
-                  globalService.setNotifyEnabled(true, routeId: route.id);
-                  Navigator.pop(dialogContext);
-                  _showNotificationSnackBar('${route.id} ${route.name}');
-                },
-              ),
-            ),
+            ...(() {
+              final routeManager = context.read<RouteManagerService>();
+              final uniqueRoutes = <BusRouteData>[];
+              final seenNames = <String>{};
+              for (var r in routeManager.allRoutes) {
+                if (!seenNames.contains(r.shortName)) {
+                  seenNames.add(r.shortName);
+                  uniqueRoutes.add(r);
+                }
+              }
+              return uniqueRoutes.map(
+                (route) => _routeSelectionTile(
+                  title: '${route.shortName} ${route.name}',
+                  subtitle: 'แจ้งเตือนเฉพาะสาย ${route.shortName}',
+                  color: Color(route.colorValue),
+                  icon: Icons.directions_bus,
+                  isSelected:
+                      globalService.notifyEnabled &&
+                      globalService.selectedNotifyRouteId == route.routeId &&
+                      globalService.destinationName == null,
+                  onTap: () {
+                    globalService.setDestination(null, null);
+                    globalService.setNotifyEnabled(
+                      true,
+                      routeId: route.routeId,
+                    );
+                    Navigator.pop(dialogContext);
+                    _showNotificationSnackBar(
+                      '${route.shortName} ${route.name}',
+                    );
+                  },
+                ),
+              );
+            })(),
           ],
         ),
         actions: [
@@ -1262,10 +1391,35 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
     }
 
     // 3. กรณีไม่ได้เลือกปลายทาง - เจอรถแล้ว (แสดงผลปกติแบบเดิม)
-    final routeInfo = BusRoute.fromId(targetBus.routeId);
-    final routeColor = routeInfo != null
-        ? Color(routeInfo.colorValue)
-        : Colors.orange;
+    Color routeColor = Colors.orange;
+    String? routeShortName;
+    try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      final bus = targetBus;
+      final routeInfo = routeManager.allRoutes.firstWhere(
+        (r) =>
+            r.routeId.toLowerCase() == bus.routeId.toLowerCase() ||
+            r.shortName.toLowerCase() == bus.routeId.toLowerCase(),
+      );
+      routeColor = Color(routeInfo.colorValue);
+      routeShortName = routeInfo.shortName;
+    } catch (_) {
+      // Fallback legacy (though targetBus.routeId should match Firestore/RouteManager now)
+      final bus = targetBus;
+      if (bus.routeId.toLowerCase() == 'green') {
+        routeColor = const Color(0xFF44B678);
+        routeShortName = 'S1';
+      } else if (bus.routeId.toLowerCase() == 'red') {
+        routeColor = const Color(0xFFFF3859);
+        routeShortName = 'S2';
+      } else if (bus.routeId.toLowerCase() == 'blue') {
+        routeColor = const Color(0xFF1177FC);
+        routeShortName = 'S3';
+      }
+    }
     final isNear =
         (targetBus.distanceToUser ?? double.infinity) <=
         500; // Assuming 500 meters for "near"
@@ -1294,7 +1448,7 @@ class _UpBusHomePageState extends State<UpBusHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '🔔 ${selectedNotifyRouteId != null ? "ติดตาม ${routeInfo?.shortName ?? selectedNotifyRouteId}" : "ติดตามทุกสาย"}',
+                  '🔔 ${selectedNotifyRouteId != null ? "ติดตาม ${routeShortName ?? selectedNotifyRouteId}" : "ติดตามทุกสาย"}',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 Text(

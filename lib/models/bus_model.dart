@@ -37,8 +37,11 @@ class Bus {
       id: id,
       // พิกัด GPS มักจะอยู่ชั้นนอกสุดเสมอ (ใช้ data ตัวเดิม)
       position: LatLng(
-        double.parse((data['lat'] ?? 0).toString()),
-        double.parse((data['lng'] ?? 0).toString()),
+        double.tryParse(data['lat'].toString()) ?? 0.0,
+        double.tryParse(
+              data['lng']?.toString() ?? data['long']?.toString() ?? '0',
+            ) ??
+            0.0,
       ),
       name: "รถเบอร์ ${id.split('_').last}",
 

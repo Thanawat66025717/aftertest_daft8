@@ -30,6 +30,8 @@ class _SideMenuState extends State<SideMenu> {
     bool isDriver = user != null && driverEmails.contains(user.email);
     // เช็คว่าเป็นผู้จัดการหรือไม่
     bool isManager = user != null && managerEmails.contains(user.email);
+    // เช็คว่าเป็นบรรณาธิการหรือไม่
+    bool isEditor = user != null && (user.email == 'editor@upbus.com');
 
     return Drawer(
       child: SafeArea(
@@ -106,6 +108,18 @@ class _SideMenuState extends State<SideMenu> {
                       builder: (context) => const ManagerPage(),
                     ),
                   );
+                },
+              ),
+
+            // 0.1 ถ้าเป็น Editor -> ปุ่มไปหน้าจัดการเส้นทาง
+            if (isEditor)
+              ListTile(
+                leading: const Icon(Icons.edit_road, color: Colors.blue),
+                title: const Text('จัดการเส้นทาง (Editor)'),
+                subtitle: const Text('แก้ไขสายรถและจุดจอด'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, '/editor');
                 },
               ),
 

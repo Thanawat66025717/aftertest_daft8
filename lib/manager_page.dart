@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+
 import 'models/bus_model.dart';
+import 'models/bus_route_data.dart';
 import 'services/global_location_service.dart';
 import 'package:flutter_map_animations/flutter_map_animations.dart';
+import 'services/route_manager_service.dart';
 
 /// หน้าผู้จัดการ - ดู Report ของ Feedback และคนขับรถ
 class ManagerPage extends StatefulWidget {
@@ -50,10 +51,8 @@ class _ManagerPageState extends State<ManagerPage>
 
   // --- Live Map ---
   final MapController _liveMapController = MapController();
-  List<Polyline> _allLiveMapPolylines = []; // เก็บเส้นทางทั้งหมดไว้เป็น source
-  List<Polyline> _liveMapPolylines = []; // เส้นทางที่ผ่านการกรองเพื่อแสดง
+  // Polylines are now generated dynamically in _buildLiveMapTab for real-time updates.
   int _selectedLiveMapRouteIndex = 0; // 0=all, 1=green, 2=red, 3=blue
-  Polyline? _routeNamorPKY; // เส้นทางสายหน้ามอตอนเข้า PKY
 
   // --- PKY Config (Green Route) ---
   String _greenPkyMode = 'custom'; // 'none' | 'always' | 'custom'
@@ -67,7 +66,6 @@ class _ManagerPageState extends State<ManagerPage>
     _tabController = TabController(length: 5, vsync: this);
     _listenToOffRouteLogs();
     _loadTodaySchedule();
-    _loadLiveMapRoutes();
     _loadGreenRouteConfig();
   }
 
@@ -401,64 +399,97 @@ class _ManagerPageState extends State<ManagerPage>
 
   // ─── Live Map ───────────────────────────────────────────────────────────────
 
-  Future<Polyline> _parseGeoJsonAsPolyline(
-    String assetPath,
-    Color color,
-  ) async {
-    final raw = await rootBundle.loadString(assetPath);
-    final json = jsonDecode(raw);
-    final List<LatLng> points = [];
-    for (var feature in (json['features'] as List)) {
-      final geometry = feature['geometry'];
-      if (geometry['type'] == 'LineString') {
-        for (var coord in (geometry['coordinates'] as List)) {
-          points.add(
-            LatLng((coord[1] as num).toDouble(), (coord[0] as num).toDouble()),
-          );
+  // List<Polyline> generation is now moved to build for dynamic updates.
+  List<Polyline> _generateLiveMapPolylines(
+    List<BusRouteData> dynamicRoutes,
+    GlobalLocationService locationService,
+  ) {
+    List<Polyline> allPolylines = [];
+    final isPKYActive = locationService.isGreenPKYActive();
+
+    // 1. Generate all polylines
+    for (var route in dynamicRoutes) {
+      if (route.pathPoints != null && route.pathPoints!.isNotEmpty) {
+        List<LatLng> points = route.pathPoints!
+            .map((p) => LatLng(p.latitude, p.longitude))
+            .toList();
+        allPolylines.add(
+          Polyline(
+            points: points,
+            color: Color(route.colorValue).withOpacity(1.0),
+            strokeWidth: 4.0,
+          ),
+        );
+      }
+    }
+
+    if (allPolylines.isEmpty) return [];
+
+    // 2. Filter
+    List<Polyline> displayLines = [];
+    if (_selectedLiveMapRouteIndex == 0) {
+      for (int i = 0; i < allPolylines.length; i++) {
+        if (i < dynamicRoutes.length) {
+          final route = dynamicRoutes[i];
+          if (route.shortName == 'S1') {
+            if (isPKYActive && route.routeId != 'S1-PM') continue;
+            if (!isPKYActive && route.routeId != 'S1-AM') continue;
+          }
+        }
+        displayLines.add(allPolylines[i]);
+      }
+    } else {
+      final uniqueRoutes = <BusRouteData>[];
+      final seenShortNames = <String>{};
+      for (var route in dynamicRoutes) {
+        if (!seenShortNames.contains(route.shortName)) {
+          seenShortNames.add(route.shortName);
+          uniqueRoutes.add(route);
+        }
+      }
+
+      if (_selectedLiveMapRouteIndex <= uniqueRoutes.length) {
+        final targetShortName =
+            uniqueRoutes[_selectedLiveMapRouteIndex - 1].shortName;
+        for (int i = 0; i < dynamicRoutes.length; i++) {
+          if (dynamicRoutes[i].shortName == targetShortName) {
+            final route = dynamicRoutes[i];
+            if (route.shortName == 'S1') {
+              if (isPKYActive && route.routeId != 'S1-PM') continue;
+              if (!isPKYActive && route.routeId != 'S1-AM') continue;
+            }
+            if (i < allPolylines.length) {
+              displayLines.add(allPolylines[i]);
+            }
+          }
         }
       }
     }
-    return Polyline(points: points, color: color, strokeWidth: 4.0);
-  }
-
-  Future<void> _loadLiveMapRoutes() async {
-    try {
-      final green = await _parseGeoJsonAsPolyline(
-        'assets/data/bus_route1_pm2.geojson',
-        const Color(0xFF44B678),
-      );
-      _routeNamorPKY = await _parseGeoJsonAsPolyline(
-        'assets/data/bus_route1.geojson',
-        const Color(0xFF44B678),
-      );
-      final red = await _parseGeoJsonAsPolyline(
-        'assets/data/bus_route2.geojson',
-        const Color(0xFFFF3859),
-      );
-      final blue = await _parseGeoJsonAsPolyline(
-        'assets/data/bus_route3.geojson',
-        const Color(0xFF1177FC),
-      );
-      if (mounted) {
-        setState(() {
-          _allLiveMapPolylines = [green, red, blue];
-          _liveMapPolylines = List.from(_allLiveMapPolylines);
-        });
-      }
-    } catch (e) {
-      debugPrint('Live map route load error: $e');
-    }
+    return displayLines;
   }
 
   void _filterLiveMapRoutes(int index) {
-    if (_allLiveMapPolylines.isEmpty) return;
     setState(() {
       _selectedLiveMapRouteIndex = index;
     });
   }
 
-  Color _busColor(String routeColor) {
-    switch (routeColor.toLowerCase()) {
+  Color _busColor(String routeIdentifier) {
+    try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      // Try to find route by color name or ID
+      final route = routeManager.allRoutes.firstWhere(
+        (r) =>
+            r.routeId.toLowerCase() == routeIdentifier.toLowerCase() ||
+            r.shortName.toLowerCase() == routeIdentifier.toLowerCase(),
+      );
+      return Color(route.colorValue);
+    } catch (_) {}
+
+    switch (routeIdentifier.toLowerCase()) {
       case 'green':
         return const Color(0xFF44B678);
       case 'red':
@@ -470,17 +501,31 @@ class _ManagerPageState extends State<ManagerPage>
     }
   }
 
-  String _busIconAsset(String routeColor) {
-    switch (routeColor.toLowerCase()) {
-      case 'green':
-        return 'assets/images/bus_green.png';
-      case 'red':
-        return 'assets/images/bus_red.png';
-      case 'blue':
-        return 'assets/images/bus_blue.png';
-      default:
-        return 'assets/images/busiconall.png';
+  String _busIconAsset(String routeIdentifier) {
+    int? colorValue;
+    try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      final route = routeManager.allRoutes.firstWhere(
+        (r) =>
+            r.routeId.toLowerCase() == routeIdentifier.toLowerCase() ||
+            r.shortName.toLowerCase() == routeIdentifier.toLowerCase(),
+      );
+      colorValue = route.colorValue;
+    } catch (_) {
+      // Fallback matching by identifier name
+      if (routeIdentifier.toLowerCase() == 'green') colorValue = 0xFF44B678;
+      if (routeIdentifier.toLowerCase() == 'red') colorValue = 0xFFFF3859;
+      if (routeIdentifier.toLowerCase() == 'blue') colorValue = 0xFF1177FC;
     }
+
+    if (colorValue == 0xFF44B678) return 'assets/images/bus_green.png';
+    if (colorValue == 0xFFFF3859) return 'assets/images/bus_red.png';
+    if (colorValue == 0xFF1177FC) return 'assets/images/bus_blue.png';
+
+    return 'assets/images/busiconall.png'; // Default purple bus
   }
 
   /// คืน label + สี schedule ปัจจุบันของสายหน้ามอ (อ่านจาก GlobalLocationService)
@@ -548,44 +593,55 @@ class _ManagerPageState extends State<ManagerPage>
     return Consumer<GlobalLocationService>(
       builder: (context, locationService, _) {
         final allBuses = locationService.buses;
+        final routeManager = context.watch<RouteManagerService>();
+        final dynamicRoutes = routeManager.allRoutes;
 
         // Filter buses based on selected route index
+        // [MODIFICATION] Handle grouped shortNames. 'S1-AM' and 'S1-PM' are grouped under 'S1'.
+        final uniqueRoutes = <BusRouteData>[];
+        final seenShortNames = <String>{};
+        for (var route in dynamicRoutes) {
+          if (!seenShortNames.contains(route.shortName)) {
+            seenShortNames.add(route.shortName);
+            uniqueRoutes.add(route);
+          }
+        }
+
         final buses = allBuses.where((bus) {
           if (_selectedLiveMapRouteIndex == 0) return true; // Show all
-          if (_selectedLiveMapRouteIndex == 1)
-            return bus.routeColor.toLowerCase() == 'green';
-          if (_selectedLiveMapRouteIndex == 2)
-            return bus.routeColor.toLowerCase() == 'red';
-          if (_selectedLiveMapRouteIndex == 3)
-            return bus.routeColor.toLowerCase() == 'blue';
+
+          if (_selectedLiveMapRouteIndex <= uniqueRoutes.length) {
+            // เลือกสีของรถให้ตรงกับสีของ route ที่เลือก
+            final targetRoute = uniqueRoutes[_selectedLiveMapRouteIndex - 1];
+
+            // Map common hex to string colors since we still use string colors from GPS
+            String targetColorStr = 'purple';
+            if (targetRoute.colorValue == 0xFF44B678 ||
+                targetRoute.colorValue == 0xFF00FF00)
+              targetColorStr = 'green';
+            if (targetRoute.colorValue == 0xFFFF3859 ||
+                targetRoute.colorValue == 0xFFFF0000)
+              targetColorStr = 'red';
+            if (targetRoute.colorValue == 0xFF1177FC ||
+                targetRoute.colorValue == 0xFF0000FF)
+              targetColorStr = 'blue';
+
+            // Check if bus routeId matches ANY route with the same shortName
+            final matchingRoutes = dynamicRoutes
+                .where((r) => r.shortName == targetRoute.shortName)
+                .map((r) => r.routeId)
+                .toList();
+
+            return bus.routeColor.toLowerCase() == targetColorStr ||
+                matchingRoutes.contains(bus.routeId);
+          }
           return true;
         }).toList();
 
-        final isPKYActive = locationService.isGreenPKYActive();
-        final currentNamor = isPKYActive && _routeNamorPKY != null
-            ? _routeNamorPKY!
-            : (_allLiveMapPolylines.isNotEmpty
-                  ? _allLiveMapPolylines[0]
-                  : null);
-
-        List<Polyline> displayLines = [];
-        if (_allLiveMapPolylines.length >= 3 && currentNamor != null) {
-          if (_selectedLiveMapRouteIndex == 0) {
-            displayLines = [
-              currentNamor,
-              _allLiveMapPolylines[1],
-              _allLiveMapPolylines[2],
-            ];
-          } else if (_selectedLiveMapRouteIndex == 1) {
-            displayLines = [currentNamor];
-          } else if (_selectedLiveMapRouteIndex == 2) {
-            displayLines = [_allLiveMapPolylines[1]];
-          } else if (_selectedLiveMapRouteIndex == 3) {
-            displayLines = [_allLiveMapPolylines[2]];
-          }
-        } else {
-          displayLines = _liveMapPolylines; // fallback
-        }
+        final displayLines = _generateLiveMapPolylines(
+          dynamicRoutes,
+          locationService,
+        );
 
         return Column(
           children: [
@@ -602,33 +658,23 @@ class _ManagerPageState extends State<ManagerPage>
                       onPressed: () => _filterLiveMapRoutes(0),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _routeButton(
-                      label: 'หน้ามอ',
-                      color: const Color.fromRGBO(68, 182, 120, 1),
-                      isSelected: _selectedLiveMapRouteIndex == 1,
-                      onPressed: () => _filterLiveMapRoutes(1),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _routeButton(
-                      label: 'หอใน',
-                      color: const Color.fromRGBO(255, 56, 89, 1),
-                      isSelected: _selectedLiveMapRouteIndex == 2,
-                      onPressed: () => _filterLiveMapRoutes(2),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _routeButton(
-                      label: 'ICT',
-                      color: const Color.fromRGBO(17, 119, 252, 1),
-                      isSelected: _selectedLiveMapRouteIndex == 3,
-                      onPressed: () => _filterLiveMapRoutes(3),
-                    ),
-                  ),
+                  ...uniqueRoutes.asMap().entries.map((entry) {
+                    int idx = entry.key + 1; // 1, 2, 3...
+                    var route = entry.value;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 6.0),
+                        child: _routeButton(
+                          label: route.shortName,
+                          color: route.colorValue == 0xFF000000
+                              ? Colors.grey
+                              : Color(route.colorValue).withValues(alpha: 1.0),
+                          isSelected: _selectedLiveMapRouteIndex == idx,
+                          onPressed: () => _filterLiveMapRoutes(idx),
+                        ),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -653,8 +699,8 @@ class _ManagerPageState extends State<ManagerPage>
                         circles: locationService.restStops.map((center) {
                           return CircleMarker(
                             point: center,
-                            color: Colors.green.withOpacity(0.2),
-                            borderColor: Colors.green.withOpacity(0.5),
+                            color: Colors.green.withValues(alpha: 0.2),
+                            borderColor: Colors.green.withValues(alpha: 0.5),
                             borderStrokeWidth: 1,
                             radius: 150, // 150 meters
                             useRadiusInMeter: true,
@@ -757,7 +803,7 @@ class _ManagerPageState extends State<ManagerPage>
                     ],
                   ),
 
-                  // Legend
+                  // Legend (Dynamic)
                   Positioned(
                     bottom: 16,
                     left: 16,
@@ -781,17 +827,17 @@ class _ManagerPageState extends State<ManagerPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _legendRow(
-                            const Color(0xFF44B678),
-                            'สายหน้ามอ (เขียว)',
-                          ),
-                          const SizedBox(height: 4),
-                          _legendRow(const Color(0xFFFF3859), 'สายหอพัก (แดง)'),
-                          const SizedBox(height: 4),
-                          _legendRow(
-                            const Color(0xFF1177FC),
-                            'สาย ICT (น้ำเงิน)',
-                          ),
+                          ...dynamicRoutes.map((route) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4.0),
+                              child: _legendRow(
+                                route.colorValue == 0xFF000000
+                                    ? Colors.grey
+                                    : Color(route.colorValue).withOpacity(1.0),
+                                '${route.name} (${route.shortName})',
+                              ),
+                            );
+                          }),
                           const SizedBox(height: 6),
                           Row(
                             children: [
@@ -980,7 +1026,7 @@ class _ManagerPageState extends State<ManagerPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.4),
+            color: Colors.red.withValues(alpha: 0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1160,12 +1206,21 @@ class _ManagerPageState extends State<ManagerPage>
 
   /// Tab 3: จัดตารางเดินรถ (Assign Routes)
   Widget _buildScheduleTab() {
-    // Mock List of Buses (Bus 1 - 10)
-    // In real app, you might fetch this from a 'buses' collection
-    final List<String> busIds = List.generate(
-      30,
-      (index) => 'bus_${index + 1}',
-    );
+    final locationService = context.watch<GlobalLocationService>();
+
+    // Use only live buses from GlobalLocationService.
+    final Set<String> busIdSet = {};
+    for (var bus in locationService.buses) {
+      busIdSet.add(bus.id);
+    }
+
+    final List<String> busIds = busIdSet.toList();
+    // Sort bus IDs numerically (bus_1, bus_2, ...)
+    busIds.sort((a, b) {
+      int idA = int.tryParse(a.split('_').last) ?? 0;
+      int idB = int.tryParse(b.split('_').last) ?? 0;
+      return idA.compareTo(idB);
+    });
 
     // Calculate Counts & Filter
 
@@ -1379,56 +1434,64 @@ class _ManagerPageState extends State<ManagerPage>
                         : _getRouteColor(currentRoute),
                   ),
                 ),
-                trailing: DropdownButton<String>(
-                  value: currentRoute,
-                  hint: const Text("เลือกสาย"),
-                  underline: Container(),
-                  items: const [
-                    DropdownMenuItem(
-                      value: "green",
-                      child: Row(
-                        children: [
-                          Icon(Icons.circle, color: Colors.green, size: 12),
-                          SizedBox(width: 8),
-                          Text("สายหน้ามอ (เขียว)"),
-                        ],
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: "red",
-                      child: Row(
-                        children: [
-                          Icon(Icons.circle, color: Colors.red, size: 12),
-                          SizedBox(width: 8),
-                          Text("สายหอพัก (แดง)"),
-                        ],
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: "blue",
-                      child: Row(
-                        children: [
-                          Icon(Icons.circle, color: Colors.blue, size: 12),
-                          SizedBox(width: 8),
-                          Text("สาย ICT (น้ำเงิน)"),
-                        ],
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: "unassigned",
-                      child: Row(
-                        children: [
-                          Icon(Icons.cancel, color: Colors.grey, size: 12),
-                          SizedBox(width: 8),
-                          Text("ยกเลิก / ไม่ระบุ"),
-                        ],
-                      ),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      _saveSchedule(busId, value);
+                trailing: Builder(
+                  builder: (context) {
+                    final routes = context
+                        .watch<RouteManagerService>()
+                        .allRoutes;
+
+                    // Group routes by shortName to treat S1-AM/PM as one "S1"
+                    final Map<String, BusRouteData> groupedRoutes = {};
+                    for (var r in routes) {
+                      // Use shortName as key (S1, S2, S3, S4...)
+                      if (!groupedRoutes.containsKey(r.shortName)) {
+                        groupedRoutes[r.shortName] = r;
+                      }
                     }
+
+                    return DropdownButton<String>(
+                      value: currentRoute,
+                      hint: const Text("เลือกสาย"),
+                      underline: Container(),
+                      items: [
+                        ...groupedRoutes.values.map((r) {
+                          // For S1, show a generic "หน้ามอ" label
+                          String label = r.shortName == 'S1'
+                              ? 'หน้ามอ (เขียว)'
+                              : r.name;
+                          return DropdownMenuItem(
+                            value: r
+                                .shortName, // Save shortName (e.g., S1) instead of specific ID
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.circle,
+                                  color: Color(r.colorValue),
+                                  size: 12,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(label),
+                              ],
+                            ),
+                          );
+                        }),
+                        const DropdownMenuItem(
+                          value: "unassigned",
+                          child: Row(
+                            children: [
+                              Icon(Icons.cancel, color: Colors.grey, size: 12),
+                              SizedBox(width: 8),
+                              Text("ยกเลิก / ไม่ระบุ"),
+                            ],
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          _saveSchedule(busId, value);
+                        }
+                      },
+                    );
                   },
                 ),
               );
@@ -1439,29 +1502,57 @@ class _ManagerPageState extends State<ManagerPage>
     );
   }
 
-  String _currentRouteLabel(String? route) {
-    switch (route) {
-      case 'green':
-        return 'หน้ามอ (เขียว)';
-      case 'red':
-        return 'หอพัก (แดง)';
-      case 'blue':
-        return 'ICT (น้ำเงิน)';
-      default:
-        return '-';
+  String _currentRouteLabel(String? routeId) {
+    if (routeId == null || routeId == 'unassigned') return '-';
+    // Special case for S1 grouped route
+    if (routeId == 'S1' || routeId == 'S1-AM' || routeId == 'S1-PM') {
+      return 'หน้ามอ (เขียว)';
+    }
+
+    try {
+      final routeManager = context.read<RouteManagerService>();
+      final route = routeManager.allRoutes.firstWhere(
+        (r) => r.routeId == routeId || r.shortName == routeId,
+      );
+      return route.name;
+    } catch (_) {
+      switch (routeId) {
+        case 'green':
+          return 'หน้ามอ (เขียว)';
+        case 'red':
+          return 'หอพัก (แดง)';
+        case 'blue':
+          return 'ICT (น้ำเงิน)';
+        default:
+          return routeId;
+      }
     }
   }
 
-  Color _getRouteColor(String? route) {
-    switch (route) {
-      case 'green':
-        return Colors.green;
-      case 'red':
-        return Colors.red;
-      case 'blue':
-        return Colors.blue;
-      default:
-        return Colors.black;
+  Color _getRouteColor(String? routeId) {
+    if (routeId == null || routeId == 'unassigned') return Colors.black;
+    // Special case for S1 grouped route
+    if (routeId == 'S1' || routeId == 'S1-AM' || routeId == 'S1-PM') {
+      return const Color(0xFF44B678); // Green
+    }
+
+    try {
+      final routeManager = context.read<RouteManagerService>();
+      final route = routeManager.allRoutes.firstWhere(
+        (r) => r.routeId == routeId || r.shortName == routeId,
+      );
+      return Color(route.colorValue);
+    } catch (_) {
+      switch (routeId) {
+        case 'green':
+          return Colors.green;
+        case 'red':
+          return Colors.red;
+        case 'blue':
+          return Colors.blue;
+        default:
+          return Colors.black;
+      }
     }
   }
 
@@ -1495,6 +1586,48 @@ class _ManagerPageState extends State<ManagerPage>
   }
 
   /// Tab 1: รายงาน Feedback (จาก Firestore collection 'feedback')
+  Future<void> _resetFeedback() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ยืนยันการลบ Feedback?'),
+        content: const Text(
+          'คุณต้องการลบข้อมูลความคิดเห็นทั้งหมดใช่หรือไม่?\n\n(การดำเนินการนี้ไม่สามารถย้อนกลับได้)',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('ยกเลิก'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'ยืนยันการลบ',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await RouteManagerService().deleteAllFeedbacks();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ลบข้อมูล Feedback ทั้งหมดแล้ว')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+      }
+    }
+  }
+
   Widget _buildFeedbackTab() {
     // ... (Keep existing code same)
     return Column(
@@ -1505,20 +1638,32 @@ class _ManagerPageState extends State<ManagerPage>
           color: Colors.grey.shade100,
           child: Column(
             children: [
-              // Search
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'ค้นหาข้อความ...',
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'ค้นหาข้อความ...',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      ),
+                      onChanged: (value) =>
+                          setState(() => _feedbackSearch = value),
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                ),
-                onChanged: (value) => setState(() => _feedbackSearch = value),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _resetFeedback,
+                    icon: const Icon(Icons.delete_sweep, color: Colors.red),
+                    tooltip: 'ลบ Feedback ทั้งหมด',
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               // Filter chips
@@ -1888,15 +2033,29 @@ class _ManagerPageState extends State<ManagerPage>
 
                   Color routeColorValue = Colors.purple;
                   String routeName = 'ไม่ระบุ';
-                  if (routeColor.toLowerCase() == 'green') {
-                    routeColorValue = Colors.green;
-                    routeName = 'สายหน้ามอ';
-                  } else if (routeColor.toLowerCase() == 'red') {
-                    routeColorValue = Colors.red;
-                    routeName = 'สายหอพัก';
-                  } else if (routeColor.toLowerCase() == 'blue') {
-                    routeColorValue = Colors.blue;
-                    routeName = 'สาย ICT';
+
+                  try {
+                    final routeManager = Provider.of<RouteManagerService>(
+                      context,
+                      listen: false,
+                    );
+                    final route = routeManager.allRoutes.firstWhere(
+                      (r) =>
+                          r.routeId.toLowerCase() == routeColor.toLowerCase(),
+                    );
+                    routeColorValue = Color(route.colorValue);
+                    routeName = route.name;
+                  } catch (_) {
+                    if (routeColor.toLowerCase() == 'green') {
+                      routeColorValue = Colors.green;
+                      routeName = 'สายหน้ามอ';
+                    } else if (routeColor.toLowerCase() == 'red') {
+                      routeColorValue = Colors.red;
+                      routeName = 'สายหอพัก';
+                    } else if (routeColor.toLowerCase() == 'blue') {
+                      routeColorValue = Colors.blue;
+                      routeName = 'สาย ICT';
+                    }
                   }
 
                   return GestureDetector(
@@ -2771,6 +2930,8 @@ class _ReportTabViewState extends State<_ReportTabView> {
   DateTime _selectedMonth = DateTime.now();
   Map<String, int> _busUsage = {};
   Map<String, int> _routeUsage = {};
+  Map<String, Map<String, int>> _busRouteStats =
+      {}; // busId -> { shortName -> dayCount }
   bool _isLoading = false;
 
   @override
@@ -2782,45 +2943,140 @@ class _ReportTabViewState extends State<_ReportTabView> {
   Future<void> _fetchReportData() async {
     setState(() => _isLoading = true);
     try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      final allRoutes = routeManager.allRoutes;
+
       final snapshot = await FirebaseFirestore.instance
           .collection('bus_operation_logs')
           .where('year', isEqualTo: _selectedMonth.year)
           .where('month', isEqualTo: _selectedMonth.month)
           .get();
 
-      Map<String, Set<String>> busDays = {}; // busId -> Set of "day" strings
-      Map<String, int> routeCounts = {'green': 0, 'red': 0, 'blue': 0};
+      // busId -> Set of days
+      Map<String, Set<String>> globalBusDays = {};
+      // routeId (shortName) -> trip count
+      Map<String, int> routeCounts = {};
+      // busId -> { shortName -> Set of days }
+      Map<String, Map<String, Set<String>>> busRouteDays = {};
+
+      // Initialize routeCounts with 0 for all existing routes
+      final uniqueShortNames = allRoutes.map((r) => r.shortName).toSet();
+      for (var sn in uniqueShortNames) {
+        routeCounts[sn] = 0;
+      }
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final busId = data['bus_id']?.toString() ?? '';
+        final routeId = data['route_id']?.toString() ?? '';
         final routeColor = data['route_color']?.toString() ?? '';
         final day = data['day']?.toString() ?? '';
 
-        if (busId.isNotEmpty) {
-          if (!busDays.containsKey(busId)) {
-            busDays[busId] = {};
-          }
-          busDays[busId]!.add(day);
+        String category = '';
+        if (routeId.isNotEmpty) {
+          final r = allRoutes
+              .where((element) => element.routeId == routeId)
+              .firstOrNull;
+          category = r?.shortName ?? routeId.split('-').first;
+        } else if (routeColor.isNotEmpty) {
+          if (routeColor == 'green')
+            category = 'S1';
+          else if (routeColor == 'red')
+            category = 'S2';
+          else if (routeColor == 'blue')
+            category = 'S3';
         }
 
-        if (routeCounts.containsKey(routeColor)) {
-          routeCounts[routeColor] = routeCounts[routeColor]! + 1;
+        if (category.isNotEmpty) {
+          routeCounts[category] = (routeCounts[category] ?? 0) + 1;
+
+          if (busId.isNotEmpty && day.isNotEmpty) {
+            busRouteDays.putIfAbsent(busId, () => {});
+            busRouteDays[busId]!.putIfAbsent(category, () => {});
+            busRouteDays[busId]![category]!.add(day);
+          }
+        }
+
+        if (busId.isNotEmpty && day.isNotEmpty) {
+          globalBusDays.putIfAbsent(busId, () => {});
+          globalBusDays[busId]!.add(day);
         }
       }
 
       Map<String, int> busUsageFinal = {};
-      busDays.forEach((key, value) {
-        busUsageFinal[key] = value.length;
+      globalBusDays.forEach((k, v) => busUsageFinal[k] = v.length);
+
+      Map<String, Map<String, int>> busRouteStatsFinal = {};
+      busRouteDays.forEach((bus, routeMap) {
+        busRouteStatsFinal[bus] = {};
+        routeMap.forEach((route, days) {
+          busRouteStatsFinal[bus]![route] = days.length;
+        });
       });
 
       setState(() {
         _busUsage = busUsageFinal;
         _routeUsage = routeCounts;
+        _busRouteStats = busRouteStatsFinal;
         _isLoading = false;
       });
     } catch (e) {
       debugPrint("Error fetching report: $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _resetMonthlyLogs() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("ยืนยันการล้างข้อมูล?"),
+        content: Text(
+          "คุณต้องการลบสถิติการเดินรถทั้งหมดของเดือน ${_monthName(_selectedMonth.month)} ${_selectedMonth.year + 543} ใช่หรือไม่?\n\n(การดำเนินการนี้ไม่สามารถย้อนกลับได้)",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("ยกเลิก"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              "ยืนยันการลบ",
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('bus_operation_logs')
+          .where('year', isEqualTo: _selectedMonth.year)
+          .where('month', isEqualTo: _selectedMonth.month)
+          .get();
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("ล้างข้อมูลสำเร็จแล้ว")));
+      _fetchReportData();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("เกิดข้อผิดพลาดในการลบ: $e")));
       setState(() => _isLoading = false);
     }
   }
@@ -2843,26 +3099,35 @@ class _ReportTabViewState extends State<_ReportTabView> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              TextButton.icon(
-                onPressed: () async {
-                  // Simple Date Picker but only pick year/month?
-                  // Using standard picker for now, just ignore day
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedMonth,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2100),
-                    initialDatePickerMode: DatePickerMode.year,
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _selectedMonth = picked;
-                    });
-                    _fetchReportData();
-                  }
-                },
-                icon: const Icon(Icons.calendar_month),
-                label: const Text("เลือกเดือน"),
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () async {
+                      // Simple Date Picker but only pick year/month?
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedMonth,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                        initialDatePickerMode: DatePickerMode.year,
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _selectedMonth = picked;
+                        });
+                        _fetchReportData();
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_month),
+                    label: const Text("เลือกเดือน"),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _resetMonthlyLogs,
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    tooltip: "ล้างข้อมูลเดือนนี้",
+                  ),
+                ],
               ),
             ],
           ),
@@ -2878,27 +3143,46 @@ class _ReportTabViewState extends State<_ReportTabView> {
                 children: [
                   _buildSectionHeader("📊 สถิติสายรถ (จำนวนเที่ยว)"),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      _buildStatCard(
-                        "สายหน้ามอ",
-                        Colors.green,
-                        _routeUsage['green'] ?? 0,
-                      ),
-                      _buildStatCard(
-                        "สายหอพัก",
-                        Colors.red,
-                        _routeUsage['red'] ?? 0,
-                      ),
-                      _buildStatCard(
-                        "สาย ICT",
-                        Colors.blue,
-                        _routeUsage['blue'] ?? 0,
-                      ),
-                    ],
-                  ),
+                  (() {
+                    final routeManager = Provider.of<RouteManagerService>(
+                      context,
+                      listen: false,
+                    );
+                    final uniqueRoutes = <BusRouteData>[];
+                    final seenNames = <String>{};
+                    for (var r in routeManager.allRoutes) {
+                      if (!seenNames.contains(r.shortName)) {
+                        seenNames.add(r.shortName);
+                        uniqueRoutes.add(r);
+                      }
+                    }
+
+                    if (uniqueRoutes.isEmpty) {
+                      return const Center(child: Text("ยังไม่มีข้อมูลเส้นทาง"));
+                    }
+
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.center,
+                      children: uniqueRoutes.map((route) {
+                        final count = _routeUsage[route.shortName] ?? 0;
+
+                        return _buildSimpleStatCard(
+                          route.name,
+                          route.shortName,
+                          Color(route.colorValue),
+                          count,
+                        );
+                      }).toList(),
+                    );
+                  })(),
                   const SizedBox(height: 30),
                   _buildSectionHeader("🚌 การใช้งานรถ (จำนวนวันวิ่ง)"),
+                  const Text(
+                    "คลิกที่เลขรถเพื่อดูรายละเอียดแยกตามสาย",
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
                   const SizedBox(height: 10),
                   if (_busUsage.isEmpty)
                     const Padding(
@@ -2912,36 +3196,52 @@ class _ReportTabViewState extends State<_ReportTabView> {
                     )
                   else
                     ..._busUsage.entries.map((e) {
+                      final busId = e.key;
+                      final totalDays = e.value;
+                      final routeStats = _busRouteStats[busId] ?? {};
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: const Icon(
-                            Icons.directions_bus,
-                            color: Colors.purple,
+                        child: InkWell(
+                          onTap: () => _showBusUsageDetail(
+                            context,
+                            busId,
+                            totalDays,
+                            routeStats,
                           ),
-                          title: Text(
-                            "รถเบอร์ ${e.key.replaceAll('bus_', '')}",
-                          ),
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                          borderRadius: BorderRadius.circular(10),
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.directions_bus,
+                              color: Colors.purple,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.purple.shade100,
-                              borderRadius: BorderRadius.circular(20),
+                            title: Text(
+                              "รถเบอร์ ${busId.replaceAll('bus_', '')}",
                             ),
-                            child: Text(
-                              "${e.value} วัน",
-                              style: TextStyle(
-                                color: Colors.purple.shade900,
-                                fontWeight: FontWeight.bold,
+                            subtitle: const Text(
+                              "ดูรายละเอียดวันวิ่งแยกตามสาย",
+                            ),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.purple.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                "$totalDays วัน",
+                                style: TextStyle(
+                                  color: Colors.purple.shade900,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       );
-                    }).toList(),
+                    }),
                 ],
               ),
             ),
@@ -2961,35 +3261,121 @@ class _ReportTabViewState extends State<_ReportTabView> {
     );
   }
 
-  Widget _buildStatCard(String title, Color color, int count) {
-    return Expanded(
-      child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        color: color.withOpacity(0.1),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            children: [
-              Text(
-                count.toString(),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: TextStyle(
-                  color: color.withOpacity(0.8),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+  Widget _buildSimpleStatCard(
+    String title,
+    String shortName,
+    Color color,
+    int count,
+  ) {
+    return Container(
+      width: 110,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.3), width: 2),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            "$count",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color.lerp(color, Colors.black, 0.2),
+            ),
           ),
+          Text(
+            "สาย$shortName",
+            style: TextStyle(
+              fontSize: 12,
+              color: Color.lerp(color, Colors.black, 0.4),
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBusUsageDetail(
+    BuildContext context,
+    String busId,
+    int totalDays,
+    Map<String, int> routeStats,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Row(
+          children: [
+            const Icon(Icons.analytics, color: Colors.purple),
+            const SizedBox(width: 10),
+            Text("รายละเอียด: รถเบอร์ ${busId.replaceAll('bus_', '')}"),
+          ],
         ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "เดือน: ${_monthName(_selectedMonth.month)} ${_selectedMonth.year + 543}",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Divider(),
+            if (routeStats.isEmpty)
+              const Text("ยังไม่มีข้อมูลการวิ่งแยกตามสาย")
+            else ...[
+              const Text(
+                "จำนวนวันวิ่งแยกตามสาย:",
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              ...routeStats.entries.map((e) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "สาย ${e.key}",
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      Text("${e.value} วัน"),
+                    ],
+                  ),
+                );
+              }),
+            ],
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "รวมทั้งหมด:",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                Text(
+                  "$totalDays วัน",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.purple,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("ปิด"),
+          ),
+        ],
       ),
     );
   }

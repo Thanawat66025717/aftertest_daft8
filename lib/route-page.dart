@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:projectapp/services/route_manager_service.dart';
+import 'package:projectapp/models/bus_route_data.dart';
 import 'sidemenu.dart';
 
 class RoutePage extends StatefulWidget {
@@ -9,25 +12,22 @@ class RoutePage extends StatefulWidget {
 }
 
 class _RoutePageState extends State<RoutePage> {
-  // 0 = ภาพรวม, 1 = หน้ามอ, 2 = หอใน, 3 = ICT
-  int _selectedRouteView = 0;
+  // Selected route ID (null = overview)
+  String? _selectedRouteId;
 
   // เมนูล่าง: 0=LiveMaps, 1=BusStop, 2=Route, 3=Plan, 4=Feedback
   int _selectedBottomIndex = 2;
 
   String get _currentRouteImage {
-    switch (_selectedRouteView) {
-      case 0:
-        return 'assets/images/all.png';
-      case 1:
-        return 'assets/images/1.png';
-      case 2:
-        return 'assets/images/2.png';
-      case 3:
-        return 'assets/images/3.png';
-      default:
-        return 'assets/images/all.png';
-    }
+    if (_selectedRouteId == null) return 'assets/images/all.png';
+
+    // Legacy mapping (if needed) or dynamic
+    if (_selectedRouteId == 'S1') return 'assets/images/1.png';
+    if (_selectedRouteId == 'S2') return 'assets/images/2.png';
+    if (_selectedRouteId == 'S3') return 'assets/images/3.png';
+
+    // Fallback search by index or shortName
+    return 'assets/images/all.png'; // No image for new routes yet
   }
 
   @override
@@ -80,26 +80,34 @@ class _RoutePageState extends State<RoutePage> {
                           _routeFilterButton(
                             'ภาพรวม',
                             const Color.fromRGBO(143, 55, 203, 1),
-                            0,
+                            null,
                           ),
                           const SizedBox(width: 10),
-                          _routeFilterButton(
-                            'หน้ามอ',
-                            const Color.fromRGBO(68, 182, 120, 1),
-                            1,
-                          ),
-                          const SizedBox(width: 10),
-                          _routeFilterButton(
-                            'หอใน',
-                            const Color.fromRGBO(255, 56, 89, 1),
-                            2,
-                          ),
-                          const SizedBox(width: 10),
-                          _routeFilterButton(
-                            'ICT',
-                            const Color.fromRGBO(17, 119, 252, 1),
-                            3,
-                          ),
+                          ...(() {
+                            final routeManager =
+                                Provider.of<RouteManagerService>(
+                                  context,
+                                  listen: false,
+                                );
+                            final uniqueRoutes = <BusRouteData>[];
+                            final seenNames = <String>{};
+                            for (var r in routeManager.allRoutes) {
+                              if (!seenNames.contains(r.shortName)) {
+                                seenNames.add(r.shortName);
+                                uniqueRoutes.add(r);
+                              }
+                            }
+                            return uniqueRoutes.map(
+                              (route) => Padding(
+                                padding: const EdgeInsets.only(right: 10.0),
+                                child: _routeFilterButton(
+                                  route.shortName,
+                                  Color(route.colorValue),
+                                  route.shortName,
+                                ),
+                              ),
+                            );
+                          })(),
                         ],
                       ),
                     ),
@@ -116,10 +124,10 @@ class _RoutePageState extends State<RoutePage> {
   }
 
   // Helper สร้างปุ่มตัวกรอง
-  Widget _routeFilterButton(String label, Color color, int index) {
-    bool isSelected = _selectedRouteView == index;
+  Widget _routeFilterButton(String label, Color color, String? id) {
+    bool isSelected = _selectedRouteId == id;
     return ElevatedButton(
-      onPressed: () => setState(() => _selectedRouteView = index),
+      onPressed: () => setState(() => _selectedRouteId = id),
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         shape: RoundedRectangleBorder(

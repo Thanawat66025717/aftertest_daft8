@@ -51,13 +51,15 @@ class RoutePlannerService {
   /// หาเส้นทางจากต้นทางไปปลายทาง (คืนเส้นทางที่ดีที่สุด)
   static RouteResult findRoute(
     String fromStopId,
-    String toStopId, {
+    String toStopId,
+    List<BusRouteData> allRoutes, {
     DateTime? time,
   }) {
-    final results = findAllRoutes(fromStopId, toStopId, time: time);
+    final results = findAllRoutes(fromStopId, toStopId, allRoutes, time: time);
     if (results.isEmpty) {
-      final fromStop = BusStops.fromId(fromStopId);
-      final toStop = BusStops.fromId(toStopId);
+      // Find stops from the dynamic routes
+      final fromStop = _findStopInRoutes(fromStopId, allRoutes);
+      final toStop = _findStopInRoutes(toStopId, allRoutes);
       return RouteResult.notFound(
         'ไม่พบเส้นทางจาก ${fromStop?.shortName ?? fromStopId} ไป ${toStop?.shortName ?? toStopId}',
       );
@@ -65,15 +67,28 @@ class RoutePlannerService {
     return results.first;
   }
 
+  static BusStopData? _findStopInRoutes(
+    String stopId,
+    List<BusRouteData> allRoutes,
+  ) {
+    for (var route in allRoutes) {
+      for (var stop in route.stops) {
+        if (stop.id == stopId) return stop;
+      }
+    }
+    return null;
+  }
+
   /// หาเส้นทางทั้งหมดจากต้นทางไปปลายทาง (คืนทุกตัวเลือก)
   static List<RouteResult> findAllRoutes(
     String fromStopId,
-    String toStopId, {
+    String toStopId,
+    List<BusRouteData> allRoutes, {
     DateTime? time,
   }) {
     final now = time ?? DateTime.now();
-    final fromStop = BusStops.fromId(fromStopId);
-    final toStop = BusStops.fromId(toStopId);
+    final fromStop = _findStopInRoutes(fromStopId, allRoutes);
+    final toStop = _findStopInRoutes(toStopId, allRoutes);
 
     debugPrint('=== Route Search ===');
     debugPrint('From: $fromStopId -> ${fromStop?.name}');
@@ -85,8 +100,8 @@ class RoutePlannerService {
       return [];
     }
 
-    // หาสายที่วิ่งอยู่ตอนนี้
-    final activeRoutes = BusRoutes.getActiveRoutes(now);
+    // หาสายที่วิ่งอยู่ตอนนี้จาก dynamic routes
+    final activeRoutes = allRoutes.where((r) => r.isActiveAt(now)).toList();
     debugPrint(
       'Active routes: ${activeRoutes.map((r) => r.shortName).join(", ")}',
     );
@@ -108,7 +123,7 @@ class RoutePlannerService {
     allResults.addAll(transferResults);
 
     // 3. หาจากสายทั้งหมด (รวมที่ยังไม่วิ่ง) เพื่อแสดงทุกตัวเลือก
-    final allRoutes = BusRoutes.all;
+    // ตรงนี้เราใช้ `allRoutes` ที่ถูกปลั๊กอินเข้ามาแทน BusRoutes.all
 
     // หา direct routes จากสายทั้งหมด
     final allDirects = _findAllDirectRoutes(fromStop, toStop, allRoutes);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'change_route_page.dart'; // อย่าลืม import หน้าเปลี่ยนสายรถ
 import 'manager_page.dart'; // หน้าผู้จัดการ
+import 'editor_home_page.dart'; // หน้าผู้แก้ไข
 
 class LoginPage extends StatefulWidget {
   @override
@@ -19,6 +20,9 @@ class _LoginPageState extends State<LoginPage> {
 
   // รายชื่อผู้จัดการ (Manager Email)
   final List<String> managerEmails = ['admin@upbus.com', 'manager@upbus.com'];
+
+  // รายชื่อผู้แก้ไข (Editor Email)
+  final List<String> editorEmails = ['editor@upbus.com'];
 
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
@@ -42,8 +46,16 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(builder: (context) => const ManagerPage()),
           );
         }
+      } else if (email != null && editorEmails.contains(email)) {
+        // --- กรณี B: เป็นผู้แก้ไข (Editor) ---
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const EditorHomePage()),
+          );
+        }
       } else if (email != null && driverEmails.contains(email)) {
-        // --- กรณี B: เป็นคนขับ ---
+        // --- กรณี C: เป็นคนขับ ---
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -51,11 +63,11 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } else {
-        // --- กรณี C: เป็นผู้ใช้ทั่วไป ---
+        // --- กรณี D: เป็นผู้ใช้ทั่วไป ---
         if (mounted) {
           Navigator.pop(context); // ปิดหน้า Login กลับไปหน้าแผนที่ปกติ
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('เข้าสู่ระบบสำเร็จ (โหมดผู้โดยสาร)')),
+            const SnackBar(content: Text('เข้าสู่ระบบสำเร็จ (โหมดผู้โดยสาร)')),
           );
         }
       }

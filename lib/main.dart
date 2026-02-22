@@ -13,6 +13,8 @@ import 'package:projectapp/plan-page.dart';
 // --- [เพิ่ม Import ตรงนี้] ---
 import 'package:projectapp/busstop_map_page.dart';
 import 'package:projectapp/login_page.dart';
+import 'package:projectapp/services/route_manager_service.dart';
+import 'package:projectapp/editor_home_page.dart';
 // -------------------------
 
 // Import Global Location Service และ Debug Bar
@@ -28,9 +30,17 @@ void main() async {
   // Note: We do NOT await initialize() here to prevent white screen hang.
   // Initialization is moved to UpBusHomePage.
 
+  // Initialize Route Manager Service (Dynamic Data)
+  final routeManagerService = RouteManagerService();
+  // เริ่มโหลดข้อมูลจาก Firebase ทันทีที่เปิดแอป
+  routeManagerService.initializeData();
+
   runApp(
-    ChangeNotifierProvider.value(
-      value: globalLocationService,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: globalLocationService),
+        ChangeNotifierProvider.value(value: routeManagerService),
+      ],
       child: const MyApp(),
     ),
   );
@@ -60,6 +70,7 @@ class MyApp extends StatelessWidget {
         // --- [เพิ่ม Route ตรงนี้] ---
         // นี่คือส่วนที่แก้ Error: Could not find a generator for route
         '/busStopMap': (context) => const BusStopMapPage(),
+        '/editor': (context) => const EditorHomePage(),
         // ------------------------
       },
     );

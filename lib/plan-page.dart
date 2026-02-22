@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 import 'package:projectapp/upbus-page.dart';
 import 'services/route_planner_service.dart';
+import 'services/route_manager_service.dart';
+import 'models/bus_route_data.dart';
 import 'sidemenu.dart';
 
 class PlanPage extends StatefulWidget {
@@ -35,9 +38,6 @@ class _PlanPageState extends State<PlanPage> {
   bool _isRoutesExpanded = true;
   bool _isSearchExpanded = true; // State for collapsible input
 
-  // เก็บ GeoJSON polylines ของแต่ละสาย
-  Map<String, List<LatLng>> _routeGeoJsonPoints = {};
-
   // เก็บ GeoJSON segments แบบละเอียด (Start -> End)
   final List<Map<String, dynamic>> _detailedRouteSegments = [];
 
@@ -62,7 +62,7 @@ class _PlanPageState extends State<PlanPage> {
   Future<void> _loadBusStops() async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('Bus stop')
+          .collection('bus_stops')
           .get();
 
       final List<DropdownMenuItem<String>> items = [];
@@ -107,24 +107,7 @@ class _PlanPageState extends State<PlanPage> {
 
   Future<void> _loadRouteGeoJson() async {
     try {
-      // S1 (ใช้ bus_route1.geojson)
-      _routeGeoJsonPoints['S1'] = await _parseGeoJsonToPoints(
-        'assets/data/bus_route1.geojson',
-      );
-      _routeGeoJsonPoints['S1-AM'] = await _parseGeoJsonToPoints(
-        'assets/data/bus_route1_pm2.geojson',
-      );
-      _routeGeoJsonPoints['S1-PM'] = _routeGeoJsonPoints['S1']!;
-      // S2
-      _routeGeoJsonPoints['S2'] = await _parseGeoJsonToPoints(
-        'assets/data/bus_route2.geojson',
-      );
-      // S3
-      _routeGeoJsonPoints['S3'] = await _parseGeoJsonToPoints(
-        'assets/data/bus_route3.geojson',
-      );
-
-      // โหลด route plan อย่างละเอียด
+      // โหลด polyline ย่อยๆ เพื่อให้เส้นทางวาดสวยขึ้น
       await _loadDetailedRoutePlan();
     } catch (e) {
       debugPrint('Error loading GeoJSON: $e');
@@ -169,22 +152,29 @@ class _PlanPageState extends State<PlanPage> {
     }
   }
 
-  Future<List<LatLng>> _parseGeoJsonToPoints(String assetPath) async {
-    String data = await rootBundle.loadString(assetPath);
-    var jsonResult = jsonDecode(data);
-    List<LatLng> points = [];
+  /// อ่านไฟล์ GeoJSON จาก assets
+  Future<Polyline> _parseGeoJson(String assetPath, Color color) async {
+    try {
+      String data = await rootBundle.loadString(assetPath);
+      var jsonResult = jsonDecode(data);
+      var features = jsonResult['features'] as List;
+      List<LatLng> points = [];
 
-    var features = jsonResult['features'] as List;
-    for (var feature in features) {
-      var geometry = feature['geometry'];
-      if (geometry['type'] == 'LineString') {
-        var coordinates = geometry['coordinates'] as List;
-        for (var coord in coordinates) {
-          points.add(LatLng(coord[1], coord[0]));
+      for (var feature in features) {
+        var geometry = feature['geometry'];
+        if (geometry['type'] == 'LineString') {
+          var coordinates = geometry['coordinates'] as List;
+          for (var coord in coordinates) {
+            points.add(LatLng(coord[1], coord[0]));
+          }
         }
       }
+
+      return Polyline(points: points, strokeWidth: 4.0, color: color);
+    } catch (e) {
+      debugPrint("Error parsing GeoJSON: $e");
+      return Polyline(points: [], color: color);
     }
-    return points;
   }
 
   // Helper สำหรับค้นหาเส้นทางย่อยที่ตรงกับชื่อป้าย
@@ -251,7 +241,7 @@ class _PlanPageState extends State<PlanPage> {
                       PolylineLayer(polylines: _polylines),
                       StreamBuilder(
                         stream: FirebaseFirestore.instance
-                            .collection('Bus stop')
+                            .collection('bus_stops')
                             .snapshots(),
                         builder: (context, snapshot) {
                           if (!snapshot.hasData) {
@@ -259,12 +249,12 @@ class _PlanPageState extends State<PlanPage> {
                           }
                           return MarkerLayer(
                             markers: snapshot.data!.docs.map((doc) {
-                              var data = doc.data();
+                              final stop = BusStopData.fromFirestore(doc);
+                              final lat = stop.location?.latitude ?? 0.0;
+                              final lng = stop.location?.longitude ?? 0.0;
+
                               return Marker(
-                                point: LatLng(
-                                  double.parse(data['lat'].toString()),
-                                  double.parse(data['long'].toString()),
-                                ),
+                                point: LatLng(lat, lng),
                                 width: 200,
                                 height: 100,
                                 child: GestureDetector(
@@ -300,7 +290,7 @@ class _PlanPageState extends State<PlanPage> {
                                               ],
                                             ),
                                             child: Text(
-                                              data['name'].toString(),
+                                              stop.name,
                                               style: const TextStyle(
                                                 color: Colors.black,
                                                 fontSize: 12,
@@ -377,7 +367,12 @@ class _PlanPageState extends State<PlanPage> {
     }
 
     // หาเส้นทางทั้งหมด
-    final results = RoutePlannerService.findAllRoutes(fromStopId, toStopId);
+    final expectedRoutes = context.read<RouteManagerService>().allRoutes;
+    final results = RoutePlannerService.findAllRoutes(
+      fromStopId,
+      toStopId,
+      expectedRoutes,
+    );
 
     setState(() {
       _routeResults = results;
@@ -410,14 +405,6 @@ class _PlanPageState extends State<PlanPage> {
     final List<LatLng> allPoints = [];
 
     for (final segment in result.segments) {
-      // ดึง routeId พื้นฐาน (S1, S2, S3)
-      String routeKey = segment.route.shortName;
-      if (segment.route.routeId == 'S1-PM') {
-        routeKey = 'S1-PM';
-      } else if (segment.route.routeId == 'S1-AM') {
-        routeKey = 'S1-AM';
-      }
-
       // พยายามหาเส้นทางแบบละเอียด (Specific Segment)
       final specificPoints = _findMatchingSegmentPoints(
         segment.fromStop.name,
@@ -435,8 +422,10 @@ class _PlanPageState extends State<PlanPage> {
         );
         allPoints.addAll(specificPoints);
       } else {
-        // ไม่เจอ -> ใช้เส้นทางทั้งสาย (Fallback)
-        final points = _routeGeoJsonPoints[routeKey];
+        // ไม่เจอ -> ใช้เส้นทางทั้งสายจาก Firestore (Fallback)
+        final points = segment.route.pathPoints
+            ?.map((p) => LatLng(p.latitude, p.longitude))
+            .toList();
         if (points != null && points.isNotEmpty) {
           newPolylines.add(
             Polyline(
@@ -444,7 +433,7 @@ class _PlanPageState extends State<PlanPage> {
               strokeWidth: 5.0,
               color: Color(
                 segment.route.colorValue,
-              ).withOpacity(0.6), // จางลงนิดหน่อย
+              ).withValues(alpha: 0.6), // จางลงนิดหน่อย
             ),
           );
           allPoints.addAll(points);
@@ -453,7 +442,33 @@ class _PlanPageState extends State<PlanPage> {
     }
 
     if (newPolylines.isEmpty) {
-      // Fallback: ใช้เส้นตรงถ้าไม่พบ GeoJSON
+      // Fallback: ใช้เส้นทางสายหลักจาก GeoJSON ถ้าไม่พบเส้นทางละเอียด
+      for (final segment in result.segments) {
+        String assetPath = '';
+        if (segment.route.routeId == 'S1-PM') {
+          assetPath = 'assets/data/bus_route1_pm.geojson';
+        } else if (segment.route.routeId == 'S1-AM' ||
+            segment.route.routeId == 'S1') {
+          assetPath = 'assets/data/bus_route1_am.geojson';
+        } else if (segment.route.routeId.contains('S2')) {
+          assetPath = 'assets/data/bus_route2.geojson';
+        } else if (segment.route.routeId.contains('S3')) {
+          assetPath = 'assets/data/bus_route3.geojson';
+        }
+
+        if (assetPath.isNotEmpty) {
+          final color = Color(segment.route.colorValue);
+          final fallbackPoly = await _parseGeoJson(assetPath, color);
+          if (fallbackPoly.points.isNotEmpty) {
+            newPolylines.add(fallbackPoly);
+            allPoints.addAll(fallbackPoly.points);
+          }
+        }
+      }
+    }
+
+    if (newPolylines.isEmpty) {
+      // Fallback 2: ใช้เส้นตรงถ้าไม่พบทั้ง GeoJSON
       final startCoords = await _getCoordsFromFirebase(_selectedSourceId!);
       final endCoords = await _getCoordsFromFirebase(_selectedDestinationId!);
       if (startCoords != null && endCoords != null) {
@@ -663,7 +678,7 @@ class _PlanPageState extends State<PlanPage> {
     // ลองหาจาก Firebase โดยใช้ชื่อ
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('Bus stop')
+          .collection('bus_stops')
           .get();
 
       for (final doc in snapshot.docs) {
@@ -672,9 +687,11 @@ class _PlanPageState extends State<PlanPage> {
 
         // Match by stop ID
         if (_matchesStopId(name, stopId)) {
-          double lat = double.parse(data['lat'].toString());
-          double lng = double.parse(data['long'].toString());
-          return LatLng(lat, lng);
+          final stop = BusStopData.fromFirestore(doc);
+          return LatLng(
+            stop.location?.latitude ?? 0.0,
+            stop.location?.longitude ?? 0.0,
+          );
         }
       }
     } catch (e) {
@@ -728,14 +745,15 @@ class _PlanPageState extends State<PlanPage> {
   Future<LatLng?> _getCoordsFromFirebase(String docId) async {
     try {
       var doc = await FirebaseFirestore.instance
-          .collection('Bus stop')
+          .collection('bus_stops')
           .doc(docId)
           .get();
       if (doc.exists) {
-        var data = doc.data() as Map<String, dynamic>;
-        double lat = double.parse(data['lat'].toString());
-        double lng = double.parse(data['long'].toString());
-        return LatLng(lat, lng);
+        final stop = BusStopData.fromFirestore(doc);
+        return LatLng(
+          stop.location?.latitude ?? 0.0,
+          stop.location?.longitude ?? 0.0,
+        );
       }
     } catch (e) {
       debugPrint("Error fetching coords: $e");
@@ -834,7 +852,7 @@ class _PlanPageState extends State<PlanPage> {
             : Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),

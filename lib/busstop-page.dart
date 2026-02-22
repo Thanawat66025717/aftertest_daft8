@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:projectapp/models/bus_route_data.dart';
 import 'sidemenu.dart';
+import 'package:provider/provider.dart';
+import 'package:projectapp/services/route_manager_service.dart';
 
-enum BusLine { yellow, red, blue }
+// enum BusLine { all, yellow, red, blue } // [REMOVED] Using dynamic routes now
 
 class BusStopPage extends StatefulWidget {
   const BusStopPage({super.key});
@@ -12,7 +15,7 @@ class BusStopPage extends StatefulWidget {
 }
 
 class _BusStopPageState extends State<BusStopPage> {
-  BusLine _selectedLine = BusLine.red;
+  String? _selectedRouteId; // null = ALL
 
   // 0=Live, 1=Stop(หน้านี้), 2=Route, 3=Plan, 4=Feed
   int _selectedBottomIndex = 1;
@@ -21,24 +24,40 @@ class _BusStopPageState extends State<BusStopPage> {
   String _searchQuery = '';
 
   String get _lineTitle {
-    switch (_selectedLine) {
-      case BusLine.yellow:
-        return 'Green Line : S1(สายสีเขียว)';
-      case BusLine.red:
-        return 'Red Line : S2(สายสีแดง)';
-      case BusLine.blue:
-        return 'Blue Line : S3(สายสีน้ำเงิน)';
+    if (_selectedRouteId == null) return 'All Stops : ป้ายรถทั้งหมด';
+
+    try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      final route = routeManager.allRoutes.firstWhere(
+        (r) => r.routeId == _selectedRouteId || r.shortName == _selectedRouteId,
+      );
+      return '${route.name} (${route.shortName})';
+    } catch (_) {
+      return '$_selectedRouteId Line';
     }
   }
 
   Color get _lineColor {
-    switch (_selectedLine) {
-      case BusLine.yellow:
-        return Colors.green.shade600;
-      case BusLine.red:
-        return Colors.red.shade600;
-      case BusLine.blue:
-        return Colors.blue.shade700;
+    if (_selectedRouteId == null) return Colors.blueGrey;
+
+    try {
+      final routeManager = Provider.of<RouteManagerService>(
+        context,
+        listen: false,
+      );
+      final route = routeManager.allRoutes.firstWhere(
+        (r) => r.routeId == _selectedRouteId || r.shortName == _selectedRouteId,
+      );
+      return Color(route.colorValue);
+    } catch (_) {
+      // Fallback
+      if (_selectedRouteId!.contains('S1')) return Colors.green.shade600;
+      if (_selectedRouteId!.contains('S2')) return Colors.red.shade600;
+      if (_selectedRouteId!.contains('S3')) return Colors.blue.shade700;
+      return Colors.purple;
     }
   }
 
@@ -95,18 +114,11 @@ class _BusStopPageState extends State<BusStopPage> {
     }
 
     target = target.toUpperCase();
-
-    if (target.contains('S1')) {
-      _selectedLine = BusLine.yellow; // สีเขียว
-    } else if (target.contains('S2')) {
-      _selectedLine = BusLine.red; // สีแดง
-    } else if (target.contains('S3')) {
-      _selectedLine = BusLine.blue; // สีน้ำเงิน
-    }
+    _selectedRouteId = target.isEmpty ? null : target;
   }
 
-  void _onSelectLine(BusLine line) {
-    setState(() => _selectedLine = line);
+  void _onSelectLine(String? routeId) {
+    setState(() => _selectedRouteId = routeId);
   }
 
   @override
@@ -161,25 +173,53 @@ class _BusStopPageState extends State<BusStopPage> {
                         ),
                         const SizedBox(height: 4),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          mainAxisAlignment: MainAxisAlignment
+                              .start, // เปลี่ยนเป็น start เพื่อเลื่อนได้
                           children: [
-                            _lineCircle(
-                              Colors.green.shade600,
-                              'S1',
-                              _selectedLine == BusLine.yellow,
-                              () => _onSelectLine(BusLine.yellow),
-                            ),
-                            _lineCircle(
-                              Colors.red.shade600,
-                              'S2',
-                              _selectedLine == BusLine.red,
-                              () => _onSelectLine(BusLine.red),
-                            ),
-                            _lineCircle(
-                              Colors.blue.shade700,
-                              'S3',
-                              _selectedLine == BusLine.blue,
-                              () => _onSelectLine(BusLine.blue),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    _lineCircle(
+                                      Colors.blueGrey,
+                                      'ALL',
+                                      _selectedRouteId == null,
+                                      () => _onSelectLine(null),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ...(() {
+                                      final routeManager = context
+                                          .read<RouteManagerService>();
+                                      final uniqueRoutes = <BusRouteData>[];
+                                      final seenNames = <String>{};
+                                      for (var r in routeManager.allRoutes) {
+                                        if (!seenNames.contains(r.shortName)) {
+                                          seenNames.add(r.shortName);
+                                          uniqueRoutes.add(r);
+                                        }
+                                      }
+                                      return uniqueRoutes.map(
+                                        (route) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8.0,
+                                          ),
+                                          child: _lineCircle(
+                                            Color(route.colorValue),
+                                            route.shortName,
+                                            _selectedRouteId ==
+                                                    route.shortName ||
+                                                _selectedRouteId ==
+                                                    route.routeId,
+                                            () =>
+                                                _onSelectLine(route.shortName),
+                                          ),
+                                        ),
+                                      );
+                                    })(),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -276,7 +316,7 @@ class _BusStopPageState extends State<BusStopPage> {
                                 ),
                                 child: StreamBuilder<QuerySnapshot>(
                                   stream: FirebaseFirestore.instance
-                                      .collection('Bus stop')
+                                      .collection('bus_stops')
                                       .snapshots(),
                                   builder: (context, snapshot) {
                                     if (snapshot.hasError)
@@ -312,56 +352,41 @@ class _BusStopPageState extends State<BusStopPage> {
                                     // 2. ถ้าไม่มีการค้นหา -> กรองตามสายที่เลือก (สีเขียว/แดง/น้ำเงิน)
 
                                     if (_searchQuery.isNotEmpty) {
-                                      // กรณีค้นหา: กรองแค่ชื่ออย่างเดียว (Logic เดิมทำไว้แล้วข้างบน documents = documents.where...)
-                                      // ดังนั้นเรา "ข้าม" การกรอง route_id ไปได้เลย
-                                    } else {
+                                      // กรณีค้นหา: กรองแค่ชื่ออย่างเดียว
+                                    } else if (_selectedRouteId != null) {
                                       // กรณีไม่ได้ค้นหา: กรองตามสายที่เลือก
-                                      String targetRoute = '';
-                                      switch (_selectedLine) {
-                                        case BusLine.yellow:
-                                          targetRoute = 'S1';
-                                          break;
-                                        case BusLine.red:
-                                          targetRoute = 'S2';
-                                          break;
-                                        case BusLine.blue:
-                                          targetRoute = 'S3';
-                                          break;
-                                      }
+                                      final target = _selectedRouteId!
+                                          .toUpperCase();
 
-                                      if (targetRoute.isNotEmpty) {
-                                        documents = documents.where((doc) {
-                                          var data =
-                                              doc.data()
-                                                  as Map<String, dynamic>;
-                                          var routes = data['route_id'];
+                                      documents = documents.where((doc) {
+                                        var data =
+                                            doc.data() as Map<String, dynamic>;
+                                        var routes =
+                                            data['route_id'] ?? data['routeId'];
 
-                                          if (routes == null) return false;
+                                        // ถ้าไม่มี route_id เลย ให้ถือว่าเป็นป้ายจอดทั่วไป (Static) ที่แสดงทุกสาย
+                                        if (routes == null) return true;
 
-                                          String target = targetRoute
-                                              .toUpperCase();
-
-                                          // กรณี 1: เป็น List (เช่น ['S1', 'S2'])
-                                          if (routes is List) {
-                                            return routes.any(
-                                              (e) => e
-                                                  .toString()
-                                                  .toUpperCase()
-                                                  .trim()
-                                                  .contains(target),
-                                            );
-                                          }
-
-                                          // กรณี 2: เป็น String (เช่น "S1" หรือ "S1, S2")
-                                          if (routes is String) {
-                                            return routes
+                                        // กรณี 1: เป็น List (เช่น ['S1', 'S2'])
+                                        if (routes is List) {
+                                          return routes.any(
+                                            (e) => e
+                                                .toString()
                                                 .toUpperCase()
-                                                .contains(target);
-                                          }
+                                                .trim()
+                                                .contains(target),
+                                          );
+                                        }
 
-                                          return false;
-                                        }).toList();
-                                      }
+                                        // กรณี 2: เป็น String (เช่น "S1" หรือ "S1, S2")
+                                        if (routes is String) {
+                                          return routes.toUpperCase().contains(
+                                            target,
+                                          );
+                                        }
+
+                                        return true; // Fallback
+                                      }).toList();
                                     }
 
                                     // [LOGIC] Scroll to Target
@@ -411,20 +436,23 @@ class _BusStopPageState extends State<BusStopPage> {
                                         ),
                                         itemCount: documents.length,
                                         itemBuilder: (context, index) {
-                                          var data =
+                                          final stop =
+                                              BusStopData.fromFirestore(
+                                                documents[index],
+                                              );
+                                          final data =
                                               documents[index].data()
                                                   as Map<String, dynamic>;
 
                                           // เช็คว่าเป็นป้ายปัจจุบันหรือไม่
                                           bool isCurrentStop =
-                                              data['name'] ==
-                                              _targetHighlightName;
+                                              stop.name == _targetHighlightName;
 
                                           return _buildBusStopCard(
                                             context,
-                                            data,
-                                            documents[index].id,
+                                            stop,
                                             isCurrentStop,
+                                            data,
                                           );
                                         },
                                       ),
@@ -554,9 +582,9 @@ class _BusStopPageState extends State<BusStopPage> {
 
   Widget _buildBusStopCard(
     BuildContext context,
-    Map<String, dynamic> data,
-    String docId,
+    BusStopData stop,
     bool isCurrentStop,
+    Map<String, dynamic> data,
   ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -584,10 +612,10 @@ class _BusStopPageState extends State<BusStopPage> {
               context,
               '/busStopMap',
               arguments: {
-                'id': docId,
-                'name': data['name'],
-                'lat': data['lat'],
-                'long': data['long'],
+                'id': stop.id,
+                'name': stop.name,
+                'lat': stop.location?.latitude,
+                'long': stop.location?.longitude,
               },
             );
           },
@@ -633,12 +661,22 @@ class _BusStopPageState extends State<BusStopPage> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        "พิกัด: ${data['lat'] ?? '-'}, ${data['long'] ?? '-'}",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 14,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            "พิกัด: ${stop.location?.latitude.toStringAsFixed(4) ?? '-'}, ${stop.location?.longitude.toStringAsFixed(4) ?? '-'}",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       _buildRouteChips(data['route_id']),
