@@ -331,7 +331,7 @@ class BusRoutes {
   /// S1 ก่อน 14:00 (ไม่ผ่าน PKY)
   static const s1AM = BusRouteData(
     routeId: 'S1-AM',
-    name: 'หน้ามอ (ก่อน 14:00)',
+    name: 'หน้ามอ',
     shortName: 'S1',
     colorValue: 0xFF44B678,
     startHour: 5,
@@ -351,7 +351,7 @@ class BusRoutes {
   /// S1 หลัง 14:00 (ผ่าน PKY)
   static const s1PM = BusRouteData(
     routeId: 'S1-PM',
-    name: 'หน้ามอ-PKY (14:00-00:00)',
+    name: 'หน้ามอ-PKY',
     shortName: 'S1',
     colorValue: 0xFF44B678,
     startHour: 14,

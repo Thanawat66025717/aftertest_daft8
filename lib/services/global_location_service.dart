@@ -40,6 +40,7 @@ class GlobalLocationService extends ChangeNotifier {
   LatLng? _userPosition;
   List<Bus> _buses = [];
   Bus? _closestBus;
+  Bus? _targetBus; // เพิ่ม: สำหรับเก็บรถเป้าหมายที่กำลังแจ้งเตือน/ติดตาม
   List<Map<String, dynamic>> _allBusStops = [];
   bool _notifyEnabled = false;
   String? _selectedNotifyRouteId;
@@ -116,6 +117,7 @@ class GlobalLocationService extends ChangeNotifier {
   }
 
   Bus? get closestBus => _closestBus;
+  Bus? get targetBus => _targetBus; // เพิ่ม getter
   List<Map<String, dynamic>> get allBusStops => _allBusStops;
   bool get notifyEnabled => _notifyEnabled;
   String? get selectedNotifyRouteId => _selectedNotifyRouteId;
@@ -144,6 +146,24 @@ class GlobalLocationService extends ChangeNotifier {
       debugPrint("❌ [GlobalLocationService] Permission DENIED FOREVER!");
       return;
     }
+
+    // --- ดึงพิกัดเริ่มต้นทันทีเพื่อให้ระบบมีข้อมูล User Position ทันที ---
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      _userPosition = LatLng(position.latitude, position.longitude);
+      _updateClosestBus();
+      notifyListeners();
+      debugPrint(
+        "📍 [GlobalLocationService] Initial position: ${_userPosition!.latitude}, ${_userPosition!.longitude}",
+      );
+    } catch (e) {
+      debugPrint("❌ [GlobalLocationService] Initial position error: $e");
+    }
+    // -----------------------------------------------------------
 
     _positionSubscription =
         Geolocator.getPositionStream(
@@ -282,6 +302,10 @@ class GlobalLocationService extends ChangeNotifier {
     _notifyEnabled = enabled;
     _selectedNotifyRouteId = routeId;
     _lastAlertStage.clear(); // Reset history
+
+    // เรียกคำนวณใหม่ทันทีเพื่อไม่ให้ค้างสถานะ "ไม่พบรถ"
+    _updateClosestBus();
+
     notifyListeners();
     debugPrint(
       "🔔 [GlobalLocationService] Notify enabled: $enabled, routeId: $routeId",
@@ -303,9 +327,12 @@ class GlobalLocationService extends ChangeNotifier {
         "🎯 [GlobalLocationService] Source set to $name (Route: $routeId)",
       );
     } else {
-      // ถ้ายกเลิก ก็ไม่ต้องปิด notify แต่ให้เคลียร์ filter
+      // ถ้ายกเลิก ก็ปิด notify ด้วยเพื่อป้องกัน fallback ไป "แจ้งเตือนทุกสาย"
+      _notifyEnabled = false;
       _selectedNotifyRouteId = null;
-      debugPrint("❌ [GlobalLocationService] Destination cleared");
+      debugPrint(
+        "❌ [GlobalLocationService] Destination cleared and notifications disabled",
+      );
     }
 
     _updateClosestBus(); // Recalculate immediately
@@ -386,11 +413,12 @@ class GlobalLocationService extends ChangeNotifier {
 
       // เรียง list ให้ stable ตาม bus id — ป้องกัน key mismatch
       newBuses.sort((a, b) => a.id.compareTo(b.id));
-      _buses = newBuses;
-      _checkOffRouteStatus();
 
-      // เรียก smooth interpolation สำหรับรถที่ตำแหน่งเปลี่ยน
       if (anyChanged || newBuses.length != prevMap.length) {
+        _buses = newBuses; // อัปเดต list หลักก่อน
+        _checkOffRouteStatus();
+
+        // เรียก smooth interpolation สำหรับรถที่ตำแหน่งเปลี่ยน
         for (final bus in newBuses) {
           final prev = prevMap[bus.id];
           // interpolate เฉพาะรถที่ตำแหน่งเปลี่ยน (หรือรถใหม่)
@@ -398,10 +426,7 @@ class GlobalLocationService extends ChangeNotifier {
             _interpolateAlongRoute(bus);
           }
         }
-        _updateClosestBus();
-        // notifyListeners จะถูกเรียกภายใน _interpolateAlongRoute อยู่แล้ว
-        // แต่เรียกเพิ่มเพื่อให้ closestBus อัปเดตทันที
-        notifyListeners();
+        _updateClosestBus(); // ไม่ต้อง notify ตรงนี้ เพราะ _updateClosestBus จะเรียกให้ตอนเสร็จ
       }
     });
   }
@@ -446,7 +471,13 @@ class GlobalLocationService extends ChangeNotifier {
 
   /// คำนวณรถที่ใกล้ที่สุดและแจ้งเตือน
   Future<void> _updateClosestBus() async {
-    if (_buses.isEmpty || _userPosition == null) return;
+    if (_buses.isEmpty || _userPosition == null) {
+      if (_buses.isEmpty)
+        debugPrint("DEBUG: _updateClosestBus - _buses is EMPTY");
+      if (_userPosition == null)
+        debugPrint("DEBUG: _updateClosestBus - _userPosition is NULL");
+      return;
+    }
 
     final Distance distance = const Distance();
 
@@ -525,33 +556,40 @@ class GlobalLocationService extends ChangeNotifier {
       busesWithDistance.add(bus.copyWithDistance(distToTarget));
     }
 
-    // เรียงลำดับตามระยะทางที่คำนวณได้
+    // 3. เรียงลำดับรถตามระยะทางเพื่อให้คันที่ใกล้ที่สุดอยู่ลำดับแรก
     busesWithDistance.sort(
       (a, b) => (a.distanceToUser ?? double.infinity).compareTo(
         b.distanceToUser ?? double.infinity,
       ),
     );
 
-    _buses = busesWithDistance;
+    // กำหนด _closestBus (แบบ Global)
     _closestBus = busesWithDistance.isNotEmpty ? busesWithDistance.first : null;
 
-    // --- แจ้งเตือน (Notification) ---
-    if (_notifyEnabled) {
-      Bus? targetBus;
+    // 4. กำหนด _targetBus ตามเงื่อนไขการแจ้งเตือน
+    _targetBus = null;
 
-      // Logic การเลือก Target Bus (เหมือนเดิม แต่ใช้ list ที่คำนวณระยะใหม่แล้ว)
+    if (_notifyEnabled) {
       if (_destinationName != null &&
           _destinationRouteId != null &&
           destinationPosition != null) {
+        // กรณีเลือกปลายทาง
         final targetId = _destinationRouteId!.trim().toLowerCase();
+        final destPos = destinationPosition!;
+
         var candidateBuses = busesWithDistance.where((b) {
-          final busRouteId = b.routeId.trim().toLowerCase();
-          return busRouteId.contains(targetId) || targetId.contains(busRouteId);
+          return isBusMatchRoute(b, targetId);
         }).toList();
+
+        // Sort candidates too
+        candidateBuses.sort(
+          (a, b) => (a.distanceToUser ?? double.infinity).compareTo(
+            b.distanceToUser ?? double.infinity,
+          ),
+        );
 
         Bus? approachingBus;
         double minDistance = double.infinity;
-        final destPos = destinationPosition!;
 
         for (var bus in candidateBuses) {
           double distToDest = distance.as(
@@ -560,8 +598,7 @@ class GlobalLocationService extends ChangeNotifier {
             destPos,
           );
           if (_prevDistToDest.containsKey(bus.id)) {
-            double prevDist = _prevDistToDest[bus.id]!;
-            if (distToDest <= prevDist) {
+            if (distToDest <= _prevDistToDest[bus.id]!) {
               if ((bus.distanceToUser ?? double.infinity) < minDistance) {
                 minDistance = bus.distanceToUser ?? double.infinity;
                 approachingBus = bus;
@@ -575,89 +612,97 @@ class GlobalLocationService extends ChangeNotifier {
           }
           _prevDistToDest[bus.id] = distToDest;
         }
-        targetBus = approachingBus;
+        _targetBus = approachingBus;
       } else if (_selectedNotifyRouteId != null) {
-        final targetId = _selectedNotifyRouteId!.trim().toLowerCase();
+        // กรณีเลือกเฉพาะสาย
+        final targetFilter = _selectedNotifyRouteId!.trim().toLowerCase();
         final filteredBuses = busesWithDistance.where((b) {
-          final busRouteId = b.routeId.trim().toLowerCase();
-          return busRouteId.contains(targetId) || targetId.contains(busRouteId);
+          return isBusMatchRoute(b, targetFilter);
         }).toList();
-        targetBus = filteredBuses.isNotEmpty ? filteredBuses.first : null;
+
+        // Sort filtered buses
+        filteredBuses.sort(
+          (a, b) => (a.distanceToUser ?? double.infinity).compareTo(
+            b.distanceToUser ?? double.infinity,
+          ),
+        );
+
+        _targetBus = filteredBuses.isNotEmpty ? filteredBuses.first : null;
       } else {
-        targetBus = _closestBus;
+        // กรณีทุกสาย
+        _targetBus = _closestBus;
       }
 
-      if (targetBus != null) {
+      // --- Debug Info ---
+      if (_targetBus != null) {
+        final dist = _targetBus!.distanceToUser ?? 0;
+        final eta = NotificationService.calculateEtaSeconds(dist);
+        debugPrint(
+          "🎯 [GlobalLocationService] Tracking Target: ${_targetBus!.id} (${_targetBus!.routeId}) - Dist: ${dist.toStringAsFixed(0)}m, ETA: $eta s",
+        );
+      } else {
+        debugPrint(
+          "🔍 [GlobalLocationService] No target bus found. (Total buses: ${busesWithDistance.length})",
+        );
+      }
+
+      // --- แจ้งเตือน (Notification / Push) ---
+      if (_targetBus != null) {
+        final targetBus = _targetBus!;
         final targetDist = targetBus.distanceToUser ?? double.infinity;
         final etaSeconds = NotificationService.calculateEtaSeconds(targetDist);
         final busId = targetBus.id;
         final lastStage = _lastAlertStage[busId] ?? 0;
 
         // เตรียม Context ข้อความ
-        String contextMsg;
-        if (closestStopToUser != null) {
-          // แจ้งเตือนโดยอ้างอิงชื่อป้ายเสมอ
-          contextMsg = "ป้าย$closestStopName";
-          if (!isUserAtStop) {
-            // ถ้าตัวเราไม่ได้อยู่ที่ป้าย (ห่าง > 50m) ให้วงเล็บเพิ่ม
-            contextMsg += " (ป้ายใกล้คุณ)";
-          }
-        } else {
-          // หาป้ายไม่เจอจริงๆ
-          contextMsg = "คุณ";
-        }
+        String contextMsg = closestStopToUser != null
+            ? "ป้าย$closestStopName"
+            : "คุณ";
+        if (closestStopToUser != null && !isUserAtStop)
+          contextMsg += " (ป้ายใกล้คุณ)";
 
-        // เช็ค Stage การแจ้งเตือน
-        if (targetDist <= _alertDistanceMeters) {
-          if (lastStage < 4) {
-            _sendArrivalAlert(
-              targetBus,
-              targetDist,
-              etaSeconds,
-              contextMsg,
-              isUserAtStop,
-            );
-            _lastAlertStage[busId] = 4;
-          }
-        } else if (etaSeconds <= 60) {
-          if (lastStage < 3) {
-            _sendArrivalAlert(
-              targetBus,
-              targetDist,
-              etaSeconds,
-              contextMsg,
-              isUserAtStop,
-            );
-            _lastAlertStage[busId] = 3;
-          }
-        } else if (etaSeconds <= 180) {
-          // 3 นาที
-          if (lastStage < 2) {
-            _sendArrivalAlert(
-              targetBus,
-              targetDist,
-              etaSeconds,
-              contextMsg,
-              isUserAtStop,
-            );
-            _lastAlertStage[busId] = 2;
-          }
-        } else if (etaSeconds <= 300) {
-          // 5 นาที
-          if (lastStage < 1) {
-            _sendArrivalAlert(
-              targetBus,
-              targetDist,
-              etaSeconds,
-              contextMsg,
-              isUserAtStop,
-            );
-            _lastAlertStage[busId] = 1;
-          }
+        // เช็ค Stage การแจ้งเตือน (Push Alert)
+        if (targetDist <= _alertDistanceMeters && lastStage < 4) {
+          _sendArrivalAlert(
+            targetBus,
+            targetDist,
+            etaSeconds,
+            contextMsg,
+            isUserAtStop,
+          );
+          _lastAlertStage[busId] = 4;
+        } else if (etaSeconds <= 60 && lastStage < 3) {
+          _sendArrivalAlert(
+            targetBus,
+            targetDist,
+            etaSeconds,
+            contextMsg,
+            isUserAtStop,
+          );
+          _lastAlertStage[busId] = 3;
+        } else if (etaSeconds <= 180 && lastStage < 2) {
+          _sendArrivalAlert(
+            targetBus,
+            targetDist,
+            etaSeconds,
+            contextMsg,
+            isUserAtStop,
+          );
+          _lastAlertStage[busId] = 2;
+        } else if (etaSeconds <= 300 && lastStage < 1) {
+          _sendArrivalAlert(
+            targetBus,
+            targetDist,
+            etaSeconds,
+            contextMsg,
+            isUserAtStop,
+          );
+          _lastAlertStage[busId] = 1;
         }
       }
     }
 
+    _buses = busesWithDistance; // อัปเดตลิสต์ที่มีระยะทางแล้ว
     notifyListeners();
   }
 
@@ -712,6 +757,7 @@ class GlobalLocationService extends ChangeNotifier {
 
   /// คำนวณระยะทางไปยังป้ายรถตาม polyline (ถ้ามี route path)
   double _calculateDistanceToStop(LatLng stopPos, String? routeId) {
+    if (_userPosition == null) return double.infinity;
     final Distance distance = const Distance();
     final routePath = _getRoutePathForStopRouteId(routeId);
     if (routePath != null && routePath.length >= 2) {
@@ -1051,5 +1097,36 @@ class GlobalLocationService extends ChangeNotifier {
     _positionSubscription?.cancel();
     _routeConfigSubscription?.cancel();
     super.dispose();
+  }
+
+  /// ตรวจสอบว่ารถบัสคันนี้ "ใช่" สายที่ต้องการหรือไม่ (Robust Matching)
+  bool isBusMatchRoute(Bus bus, String target) {
+    final t = target.trim().toLowerCase();
+    final bId = bus.routeId.trim().toLowerCase();
+    final bColor = bus.routeColor.trim().toLowerCase();
+
+    // 1. Direct Matching
+    if (bId.contains(t) || t.contains(bId)) return true;
+    if (bColor.contains(t) || t.contains(bColor)) return true;
+
+    // 2. Mapping S1 (Green)
+    if (t.contains("s1") || t.contains("หน้ามอ")) {
+      if (bId.contains("green") || bColor.contains("green")) return true;
+      if (bColor.contains("เขียว")) return true;
+    }
+
+    // 3. Mapping S2 (Red)
+    if (t.contains("s2") || t.contains("หอใน")) {
+      if (bId.contains("red") || bColor.contains("red")) return true;
+      if (bColor.contains("แดง")) return true;
+    }
+
+    // 4. Mapping S3 (Blue)
+    if (t.contains("s3") || t.contains("ict")) {
+      if (bId.contains("blue") || bColor.contains("blue")) return true;
+      if (bColor.contains("น้ำเงิน")) return true;
+    }
+
+    return false;
   }
 }
