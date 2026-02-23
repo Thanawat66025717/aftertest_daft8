@@ -341,28 +341,18 @@ class _PlanPageState extends State<PlanPage> {
       return;
     }
 
-    // แปลง Firebase ID เป็น internal stop ID
-    final fromStopId = RoutePlannerService.mapFirebaseIdToStopId(
-      _selectedSourceId!,
-      _selectedSourceName ?? '',
-    );
-    final toStopId = RoutePlannerService.mapFirebaseIdToStopId(
-      _selectedDestinationId!,
-      _selectedDestinationName ?? '',
-    );
+    // ใช้ Firestore ID โดยตรง
+    final fromStopId = _selectedSourceId;
+    final toStopId = _selectedDestinationId;
 
     debugPrint('Searching Route:');
-    debugPrint(
-      'Source Input: $_selectedSourceName (ID: $_selectedSourceId) -> Mapped: $fromStopId',
-    );
-    debugPrint(
-      'Dest Input: $_selectedDestinationName (ID: $_selectedDestinationId) -> Mapped: $toStopId',
-    );
+    debugPrint('Source ID: $fromStopId, Name: $_selectedSourceName');
+    debugPrint('Dest ID: $toStopId, Name: $_selectedDestinationName');
 
     if (fromStopId == null || toStopId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ไม่สามารถระบุป้ายได้ กรุณาลองใหม่')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('กรุณาเลือกป้ายที่ถูกต้อง')));
       return;
     }
 
@@ -675,71 +665,24 @@ class _PlanPageState extends State<PlanPage> {
 
   /// ดึง coordinates จาก stop ID
   Future<LatLng?> _getStopCoords(String stopId) async {
-    // ลองหาจาก Firebase โดยใช้ชื่อ
     try {
-      final snapshot = await FirebaseFirestore.instance
+      final doc = await FirebaseFirestore.instance
           .collection('bus_stops')
+          .doc(stopId)
           .get();
 
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final name = (data['name'] as String?)?.toLowerCase() ?? '';
-
-        // Match by stop ID
-        if (_matchesStopId(name, stopId)) {
-          final stop = BusStopData.fromFirestore(doc);
-          return LatLng(
-            stop.location?.latitude ?? 0.0,
-            stop.location?.longitude ?? 0.0,
-          );
-        }
+      if (doc.exists) {
+        final stop = BusStopData.fromFirestore(doc);
+        return LatLng(
+          stop.location?.latitude ??
+              19.03, // Fallback to center if coords missing
+          stop.location?.longitude ?? 99.897,
+        );
       }
     } catch (e) {
-      debugPrint("Error fetching stop coords: $e");
+      debugPrint("Error fetching stop coords for $stopId: $e");
     }
     return null;
-  }
-
-  bool _matchesStopId(String name, String stopId) {
-    final nameLower = name.toLowerCase();
-    switch (stopId) {
-      case 'pky':
-        return nameLower.contains('pky') || nameLower.contains('พีเค');
-      case 'namor':
-        return nameLower.contains('หน้ามอ') ||
-            nameLower.contains('ม.พะเยา') ||
-            nameLower.contains('หน้ามหาวิทยาลัย');
-      case 'engineering':
-        return nameLower.contains('วิศว');
-      case 'auditorium':
-        return nameLower.contains('ประชุม') || nameLower.contains('พญางำเมือง');
-      case 'president':
-        return nameLower.contains('อธิการ');
-      case 'arts':
-        return nameLower.contains('ศิลป');
-      case 'science':
-        return nameLower.contains('วิทยาศาสตร์') ||
-            nameLower.contains('science') ||
-            nameLower.contains('เภสัช');
-      case 'gate3':
-        return nameLower.contains('ประตู') && nameLower.contains('3') ||
-            nameLower.contains('หลังมอ');
-      case 'economy_center':
-        return nameLower.contains('เศรษฐกิจ');
-      case 'ict':
-        return nameLower.contains('ict') ||
-            nameLower.contains('เทคโนโลยีสารสนเทศ');
-      case 'ub99':
-        return nameLower.contains('99') || nameLower.contains('ub');
-      case 'wiangphayao':
-        return nameLower.contains('เวียง');
-      case 'sanguansermsri':
-        return nameLower.contains('สงวน');
-      case 'satit':
-        return nameLower.contains('สาธิต');
-      default:
-        return false;
-    }
   }
 
   Future<LatLng?> _getCoordsFromFirebase(String docId) async {
