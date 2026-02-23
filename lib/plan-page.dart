@@ -108,9 +108,10 @@ class _PlanPageState extends State<PlanPage> {
   Future<void> _loadRouteGeoJson() async {
     try {
       // โหลด polyline ย่อยๆ เพื่อให้เส้นทางวาดสวยขึ้น
+      // [UPDATE] Catch errors silently if route_plan.geojson is missing to avoid console clutter
       await _loadDetailedRoutePlan();
     } catch (e) {
-      debugPrint('Error loading GeoJSON: $e');
+      // Ignore missing file errors
     }
   }
 

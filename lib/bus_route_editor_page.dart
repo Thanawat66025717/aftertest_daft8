@@ -496,7 +496,24 @@ class _BusRouteEditorPageState extends State<BusRouteEditorPage> {
                               stop.name,
                               style: const TextStyle(fontSize: 13),
                             ),
-                            trailing: const Icon(Icons.drag_handle, size: 20),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.remove_circle_outline,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                  onPressed: () {
+                                    setDialogState(
+                                      () => editedStops.removeAt(index),
+                                    );
+                                  },
+                                ),
+                                const Icon(Icons.drag_handle, size: 20),
+                              ],
+                            ),
                           ),
                         );
                       },

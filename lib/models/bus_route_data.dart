@@ -50,7 +50,7 @@ class BusStopData {
     }
 
     return BusStopData(
-      id: data['id'] ?? doc.id,
+      id: (data['id'] ?? doc.id).toString(),
       name: data['name'] ?? '',
       shortName: data['shortName'],
       location: finalLoc,
@@ -83,10 +83,10 @@ class BusStopData {
       identical(this, other) ||
       other is BusStopData &&
           runtimeType == other.runtimeType &&
-          id == other.id;
+          id.toLowerCase() == other.id.toLowerCase();
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => id.toLowerCase().hashCode;
 
   operator [](String other) {}
 }
@@ -125,21 +125,36 @@ class BusRouteData {
     if (data['stops'] != null) {
       List<dynamic> stopIds = data['stops'];
       for (var id in stopIds) {
+        final searchId = id.toString().trim();
+        // Try exact match first, then case-insensitive
         var stop = allStops.firstWhere(
-          (s) => s.id == id,
-          orElse: () => BusStopData(id: id.toString(), name: 'Unknown Stop'),
+          (s) => s.id == searchId,
+          orElse: () => allStops.firstWhere(
+            (s) => s.id.toLowerCase() == searchId.toLowerCase(),
+            orElse: () =>
+                BusStopData(id: searchId, name: 'Unknown Stop ($searchId)'),
+          ),
         );
         routeStops.add(stop);
       }
     }
 
+    int? startHour;
+    if (data['startHour'] != null) {
+      startHour = int.tryParse(data['startHour'].toString());
+    }
+    int? endHour;
+    if (data['endHour'] != null) {
+      endHour = int.tryParse(data['endHour'].toString());
+    }
+
     return BusRouteData(
-      routeId: data['routeId'] ?? doc.id,
+      routeId: (data['routeId'] ?? doc.id).toString(),
       name: data['name'] ?? '',
       shortName: data['shortName'] ?? '',
       colorValue: data['colorValue'] ?? 0xFF000000,
-      startHour: data['startHour'],
-      endHour: data['endHour'],
+      startHour: startHour,
+      endHour: endHour,
       stops: routeStops,
       pathPoints: path,
     );
@@ -174,19 +189,22 @@ class BusRouteData {
 
   /// หา index ของป้ายในสาย (-1 ถ้าไม่มี)
   int indexOfStop(String stopId) {
-    return stops.indexWhere((s) => s.id == stopId);
+    return stops.indexWhere((s) => s.id.toLowerCase() == stopId.toLowerCase());
   }
 
   /// หา index สุดท้ายของป้ายในสาย (สำหรับ loop routes)
   int lastIndexOfStop(String stopId) {
-    return stops.lastIndexWhere((s) => s.id == stopId);
+    return stops.lastIndexWhere(
+      (s) => s.id.toLowerCase() == stopId.toLowerCase(),
+    );
   }
 
   /// หา indices ทั้งหมดของป้าย (สำหรับป้ายที่ปรากฏหลายครั้ง)
   List<int> allIndicesOfStop(String stopId) {
     List<int> indices = [];
+    final searchId = stopId.toLowerCase();
     for (int i = 0; i < stops.length; i++) {
-      if (stops[i].id == stopId) indices.add(i);
+      if (stops[i].id.toLowerCase() == searchId) indices.add(i);
     }
     return indices;
   }
@@ -304,7 +322,8 @@ class BusStops {
   /// หาป้ายจาก id
   static BusStopData? fromId(String id) {
     try {
-      return all.firstWhere((s) => s.id == id);
+      final searchId = id.toLowerCase();
+      return all.firstWhere((s) => s.id.toLowerCase() == searchId);
     } catch (_) {
       return null;
     }

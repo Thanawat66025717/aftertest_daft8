@@ -73,7 +73,7 @@ class RoutePlannerService {
   ) {
     for (var route in allRoutes) {
       for (var stop in route.stops) {
-        if (stop.id == stopId) return stop;
+        if (stop.id.toLowerCase() == stopId.toLowerCase()) return stop;
       }
     }
     return null;
@@ -95,8 +95,15 @@ class RoutePlannerService {
     debugPrint('To: $toStopId -> ${toStop?.name}');
     debugPrint('Time: ${now.hour}:${now.minute}');
 
-    if (fromStop == null || toStop == null || fromStopId == toStopId) {
-      debugPrint('Invalid stops or same stop');
+    if (fromStop == null ||
+        toStop == null ||
+        fromStopId.toLowerCase() == toStopId.toLowerCase()) {
+      if (fromStop == null)
+        debugPrint('Search Error: fromStop not found for $fromStopId');
+      if (toStop == null)
+        debugPrint('Search Error: toStop not found for $toStopId');
+      if (fromStopId.toLowerCase() == toStopId.toLowerCase())
+        debugPrint('Search Error: same stop');
       return [];
     }
 
@@ -111,9 +118,17 @@ class RoutePlannerService {
     // 1. หาเส้นทางตรงทั้งหมด
     final directResults = _findAllDirectRoutes(fromStop, toStop, activeRoutes);
     debugPrint('Direct routes found: ${directResults.length}');
+    if (directResults.isEmpty) {
+      debugPrint(
+        'No direct routes found in active routes. Checking all routes...',
+      );
+      final allDirectsCheck = _findAllDirectRoutes(fromStop, toStop, allRoutes);
+      debugPrint('Direct routes in ALL routes: ${allDirectsCheck.length}');
+    }
     allResults.addAll(directResults);
 
     // 2. หาเส้นทางที่ต้องเปลี่ยนสายทั้งหมด
+    debugPrint('Searching for transfer routes...');
     final transferResults = _findAllTransferRoutes(
       fromStop,
       toStop,
@@ -389,10 +404,22 @@ class RoutePlannerService {
     final List<RouteResult> results = [];
 
     for (final route in routes) {
-      // หา indices ทั้งหมดของต้นทางและปลายทาง (สำหรับ loop routes)
       final fromIndices = route.allIndicesOfStop(fromStop.id);
       final toIndices = route.allIndicesOfStop(toStop.id);
       final isCircular = _isCircular(route);
+
+      debugPrint(
+        '  Checking Route ${route.routeId}: FromIndices=$fromIndices, ToIndices=$toIndices, Circular=$isCircular',
+      );
+      if (fromIndices.isEmpty || toIndices.isEmpty) {
+        debugPrint(
+          '    Stop not found in route: fromFound=${fromIndices.isNotEmpty}, toFound=${toIndices.isNotEmpty}',
+        );
+        // Optional: Print all stop IDs in this route to see why searchId didn't match
+        debugPrint(
+          '    Route Stops: ${route.stops.map((s) => s.id).join(", ")}',
+        );
+      }
 
       // ลองทุกคู่ของ fromIndex และ toIndex
       for (final fromIndex in fromIndices) {
@@ -401,6 +428,9 @@ class RoutePlannerService {
 
           // กรณีปกติ (forward) หรือ กรณีวนลูป (backward but circular)
           if (fromIndex < toIndex || isLoopSegment) {
+            debugPrint(
+              '    Found valid direct segment! ${fromIndex} -> ${toIndex}',
+            );
             // เก็บป้ายระหว่างทาง
             final stopsInBetween = _getStopsInBetween(
               route,
@@ -446,6 +476,10 @@ class RoutePlannerService {
     // หาสายที่ผ่านปลายทาง
     final toRoutes = routes.where((r) => r.hasStop(toStop.id)).toList();
 
+    debugPrint(
+      'Transfer Search: FromRoutes=${fromRoutes.map((r) => r.routeId).join(", ")}, ToRoutes=${toRoutes.map((r) => r.routeId).join(", ")}',
+    );
+
     final List<RouteResult> results = [];
     final Set<String> seenRouteKeys = {};
 
@@ -463,7 +497,7 @@ class RoutePlannerService {
         int bestStopCount = 999;
 
         debugPrint(
-          'Checking ${firstRoute.shortName} (Circular: $isFirstCircular) -> ${secondRoute.shortName} (Circular: $isSecondCircular)',
+          'Checking Pair: ${firstRoute.routeId} -> ${secondRoute.routeId} (Transfer Points: ${transferStops.map((s) => s.id).join(", ")})',
         );
 
         for (final transferStop in transferStops) {
@@ -498,6 +532,10 @@ class RoutePlannerService {
                   final isSeg2Loop =
                       isSecondCircular && secondFromIdx > secondToIdx;
                   if (!(secondFromIdx < secondToIdx || isSeg2Loop)) continue;
+
+                  debugPrint(
+                    '  Found valid sequence: ${firstRoute.routeId}(${firstFromIdx}->${firstToIdx}) + ${secondRoute.routeId}(${secondFromIdx}->${secondToIdx})',
+                  );
 
                   // นับจำนวนป้าย
                   final totalStops =
@@ -589,8 +627,12 @@ class RoutePlannerService {
     BusRouteData route1,
     BusRouteData route2,
   ) {
-    final stops1 = route1.stops.toSet();
-    final stops2 = route2.stops.toSet();
-    return stops1.intersection(stops2).toList();
+    final stopIds1 = route1.stops.map((s) => s.id.toLowerCase()).toSet();
+    final stopIds2 = route2.stops.map((s) => s.id.toLowerCase()).toSet();
+    final commonIds = stopIds1.intersection(stopIds2);
+
+    return route1.stops
+        .where((s) => commonIds.contains(s.id.toLowerCase()))
+        .toList();
   }
 }
