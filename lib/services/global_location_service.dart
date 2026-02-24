@@ -64,6 +64,9 @@ class GlobalLocationService extends ChangeNotifier {
       {}; // ตำแหน่งที่แสดงบน UI (smooth)
   final Map<String, Timer> _interpTimers = {}; // timer ต่อคัน
   final Map<String, bool> _recentOffRoutes = {}; // Track off-route status
+  DateTime? _lastAggregatedOffRouteAlert;
+  Set<String> _lastOffRouteBusIds = {};
+  static const int _aggregatedManagerAlertId = 9999;
 
   // ─── Green Route PKY Config ───────────────────────────────────────────────
   /// โหมดการวิ่งเข้า PKY ของสายหน้ามอ
@@ -1004,6 +1007,8 @@ class GlobalLocationService extends ChangeNotifier {
   final Map<String, DateTime> _lastOffRouteAlert = {};
 
   void _checkOffRouteStatus() {
+    List<Map<String, dynamic>> offRouteBuses = [];
+
     for (var bus in _buses) {
       // 1. ถ้าอยู่ในจุดพักรถ -> ข้ามการเช็ค Off-route
       if (_isBusInRestStop(bus)) continue;
@@ -1017,52 +1022,15 @@ class GlobalLocationService extends ChangeNotifier {
 
         // 4. ตรวจสอบระยะเบี่ยงเบน
         if (snap.dist > _offRouteThresholdMeters) {
-          debugPrint(
-            "⚠️ ALERT: Bus ${bus.name} (Route ${bus.routeId}) is OFF-ROUTE by ${snap.dist.toStringAsFixed(1)} m!",
-          );
+          offRouteBuses.add({'bus': bus, 'dist': snap.dist});
 
-          // Trigger Notification (Rate limited: once per minute per bus)
-          final lastAlert = _lastOffRouteAlert[bus.id];
-          if (lastAlert == null ||
-              DateTime.now().difference(lastAlert).inMinutes >= 1) {
-            _lastOffRouteAlert[bus.id] = DateTime.now();
-
-            // "Notify Manager" -> Log to Firestore
-            try {
-              FirebaseFirestore.instance.collection('off_route_logs').add({
-                'bus_id': bus.id,
-                'bus_name': bus.name,
-                'driver_name': bus.driverName,
-                'route_id': bus.routeId,
-                'deviation_meters': snap.dist,
-                'timestamp': FieldValue.serverTimestamp(),
-                'status': 'off-route',
-                'location': {
-                  'lat': bus.position.latitude,
-                  'lng': bus.position.longitude,
-                },
-              });
-              debugPrint("📝 Logged off-route event to Firestore for Manager.");
-            } catch (e) {
-              debugPrint("❌ Failed to log off-route event: $e");
-            }
-
-            // ALSO Show Local Notification (Alert) - FOR MANAGERS
-            if (_isCurrentUserManager()) {
-              String driverInfo = bus.driverName.isNotEmpty
-                  ? " (คนขับ: ${bus.driverName})"
-                  : "";
-              NotificationService.showNotification(
-                id: bus.id.hashCode,
-                title: "⚠️ แจ้งเตือนรถออกนอกเส้นทาง!",
-                body:
-                    "รถ ${bus.name}$driverInfo (สาย ${bus.routeId}) เบี่ยงออกไป ${snap.dist.toStringAsFixed(0)} เมตร",
-                payload: "off_route_${bus.id}",
-              );
-            }
-
-            // ALSO Show Local Notification (Alert) - FOR DRIVER (own bus only)
-            if (_isCurrentUserDriver(bus.driverName)) {
+          // ALSO Show Local Notification (Alert) - FOR DRIVER (own bus only)
+          // Driver alerts are still per-bus as it's their own bus
+          if (_isCurrentUserDriver(bus.driverName)) {
+            final lastAlert = _lastOffRouteAlert[bus.id];
+            if (lastAlert == null ||
+                DateTime.now().difference(lastAlert).inMinutes >= 1) {
+              _lastOffRouteAlert[bus.id] = DateTime.now();
               NotificationService.showNotification(
                 id: bus.id.hashCode + 1000,
                 title: "⚠️ คุณออกนอกเส้นทาง!",
@@ -1070,8 +1038,95 @@ class GlobalLocationService extends ChangeNotifier {
                     "รถ ${bus.name} เบี่ยงออกจากเส้นทาง ${snap.dist.toStringAsFixed(0)} เมตร กรุณากลับเข้าเส้นทาง",
                 payload: "off_route_driver_${bus.id}",
               );
+              NotificationService.vibrate();
             }
           }
+        }
+      }
+    }
+
+    // Handle aggregated Manager Notification
+    if (_isCurrentUserManager()) {
+      _handleManagerOffRouteNotification(offRouteBuses);
+    }
+  }
+
+  void _handleManagerOffRouteNotification(
+    List<Map<String, dynamic>> offRouteBuses,
+  ) {
+    if (offRouteBuses.isEmpty) {
+      // Option: cancel notification if no more off-route buses
+      // NotificationService.cancel(_aggregatedManagerAlertId);
+      _lastOffRouteBusIds.clear();
+      return;
+    }
+
+    final currentBusIds = offRouteBuses
+        .map((e) => (e['bus'] as Bus).id)
+        .toSet();
+    final bool hasSetChanged = !setEquals(_lastOffRouteBusIds, currentBusIds);
+    final bool isRateLimited =
+        _lastAggregatedOffRouteAlert != null &&
+        DateTime.now().difference(_lastAggregatedOffRouteAlert!).inMinutes < 1;
+
+    // Only notify if the set of buses changed OR it's been > 1 minute
+    if (!hasSetChanged && isRateLimited) return;
+
+    _lastAggregatedOffRouteAlert = DateTime.now();
+    _lastOffRouteBusIds = currentBusIds;
+
+    String title;
+    String body;
+
+    if (offRouteBuses.length == 1) {
+      final bus = offRouteBuses.first['bus'] as Bus;
+      final dist = offRouteBuses.first['dist'] as double;
+      title = "⚠️ แจ้งเตือนรถออกนอกเส้นทาง!";
+      String driverInfo = bus.driverName.isNotEmpty
+          ? " (คนขับ: ${bus.driverName})"
+          : "";
+      body =
+          "รถ ${bus.name}$driverInfo (สาย ${bus.routeId}) เบี่ยงออกไป ${dist.toStringAsFixed(0)} เมตร";
+    } else {
+      title = "⚠️ แจ้งเตือนรถออกนอกเส้นทาง (${offRouteBuses.length} คัน)";
+      final busNames = offRouteBuses
+          .map((e) => (e['bus'] as Bus).name)
+          .join(', ');
+      body = "พบรถ ${offRouteBuses.length} คันมีปัญหา: $busNames";
+    }
+
+    NotificationService.showNotification(
+      id: _aggregatedManagerAlertId,
+      title: title,
+      body: body,
+      payload: "off_route_aggregation",
+    );
+    NotificationService.vibrate();
+
+    // Log each bus to Firestore (keep existing logging logic)
+    for (var item in offRouteBuses) {
+      final bus = item['bus'] as Bus;
+      final dist = item['dist'] as double;
+      final lastAlert = _lastOffRouteAlert[bus.id];
+      if (lastAlert == null ||
+          DateTime.now().difference(lastAlert).inMinutes >= 1) {
+        _lastOffRouteAlert[bus.id] = DateTime.now();
+        try {
+          FirebaseFirestore.instance.collection('off_route_logs').add({
+            'bus_id': bus.id,
+            'bus_name': bus.name,
+            'driver_name': bus.driverName,
+            'route_id': bus.routeId,
+            'deviation_meters': dist,
+            'timestamp': FieldValue.serverTimestamp(),
+            'status': 'off-route',
+            'location': {
+              'lat': bus.position.latitude,
+              'lng': bus.position.longitude,
+            },
+          });
+        } catch (e) {
+          debugPrint("❌ Failed to log off-route event: $e");
         }
       }
     }
