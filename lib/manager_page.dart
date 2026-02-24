@@ -48,6 +48,7 @@ class _ManagerPageState extends State<ManagerPage>
   // Active Off-Route Alert
   Map<String, dynamic>? _activeOffRouteAlert;
   Timer? _alertDismissTimer;
+  bool _isOffRouteBannerExpanded = false;
 
   // --- Live Map ---
   final MapController _liveMapController = MapController();
@@ -1003,20 +1004,10 @@ class _ManagerPageState extends State<ManagerPage>
   }
 
   Widget _buildOffRouteAlertBanner() {
-    if (_activeOffRouteAlert == null) return const SizedBox.shrink();
-
-    final data = _activeOffRouteAlert!;
-    final busName = data['bus_name'] ?? 'ไม่ระบุ';
-    final dist = data['deviation_meters'] ?? 0.0;
-    final driverName = data['driver_name'];
-    final routeId = data['route_id'] ?? '-';
-
-    String message = "รถ$busName (สาย $routeId) ";
-    if (driverName != null && driverName.toString().isNotEmpty) {
-      message += "(คนขับ: $driverName) ";
-    }
-    message +=
-        "ออกนอกเส้นทาง ${double.parse(dist.toString()).toStringAsFixed(0)} ม.";
+    final offRouteBuses = context
+        .watch<GlobalLocationService>()
+        .currentOffRouteBuses;
+    if (offRouteBuses.isEmpty) return const SizedBox.shrink();
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -1029,7 +1020,7 @@ class _ManagerPageState extends State<ManagerPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withValues(alpha: 0.1),
+            color: Colors.red.withOpacity(0.2),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1037,64 +1028,108 @@ class _ManagerPageState extends State<ManagerPage>
       ),
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            // 1. Switch to Driver Tab (Index 1)
-            _tabController.animateTo(1);
-            // 2. Show detailed popup
-            _showOffRouteDetail(data);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.warning_amber_rounded,
-                    color: Colors.white,
-                    size: 32,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            initiallyExpanded: _isOffRouteBannerExpanded,
+            onExpansionChanged: (expanded) {
+              setState(() => _isOffRouteBannerExpanded = expanded);
+            },
+            iconColor: Colors.white,
+            collapsedIconColor: Colors.white,
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            title: Text(
+              offRouteBuses.length == 1
+                  ? "⚠️ ตรวจพบรถออกนอกเส้นทาง!"
+                  : "⚠️ ตรวจพบรถออกนอกเส้นทาง (${offRouteBuses.length} คัน)",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            subtitle: Text(
+              offRouteBuses.length == 1
+                  ? "เบอร์ ${(offRouteBuses.first['bus'] as Bus).name} ${offRouteBuses.first['dist'].toStringAsFixed(0)}ม."
+                  : "แตะเพื่อดูรายชื่อรถที่มีปัญหา",
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "⚠️ แจ้งเตือนด่วน!",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                child: Column(
+                  children: offRouteBuses.map((item) {
+                    final bus = item['bus'] as Bus;
+                    final dist = item['dist'] as double;
+                    return ListTile(
+                      dense: true,
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        radius: 12,
+                        child: Text(
+                          bus.id.split('_').last,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        message,
+                      title: Text(
+                        "รถเบอร์ ${bus.name} (สาย ${bus.routeId})",
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
-                          height: 1.4,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
+                      subtitle: Text(
+                        "เบี่ยง ${dist.toStringAsFixed(0)} ม. · ${bus.driverName}",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white54,
+                        size: 16,
+                      ),
+                      onTap: () {
+                        _tabController.animateTo(1); // Driver tab
+                        _showOffRouteDetail({
+                          'bus_id': bus.id,
+                          'bus_name': bus.name,
+                          'driver_name': bus.driverName,
+                          'route_id': bus.routeId,
+                          'deviation_meters': dist,
+                        });
+                      },
+                    );
+                  }).toList(),
                 ),
-                const Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white70,
-                  size: 16,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

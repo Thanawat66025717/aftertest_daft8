@@ -66,6 +66,8 @@ class GlobalLocationService extends ChangeNotifier {
   final Map<String, bool> _recentOffRoutes = {}; // Track off-route status
   DateTime? _lastAggregatedOffRouteAlert;
   Set<String> _lastOffRouteBusIds = {};
+  List<Map<String, dynamic>> _currentOffRouteBuses =
+      []; // real-time off-route data
   static const int _aggregatedManagerAlertId = 9999;
 
   // ─── Green Route PKY Config ───────────────────────────────────────────────
@@ -129,6 +131,7 @@ class GlobalLocationService extends ChangeNotifier {
   Set<String> get allKnownBusIds => _allKnownBusIds;
   String? get destinationName => _destinationName;
   String? get destinationRouteId => _destinationRouteId;
+  List<Map<String, dynamic>> get currentOffRouteBuses => _currentOffRouteBuses;
 
   Future<void> _startLocationTracking() async {
     debugPrint("📡 [GlobalLocationService] Starting location tracking...");
@@ -1049,6 +1052,10 @@ class GlobalLocationService extends ChangeNotifier {
     if (_isCurrentUserManager()) {
       _handleManagerOffRouteNotification(offRouteBuses);
     }
+
+    // Update local state for UI dropdown
+    _currentOffRouteBuses = offRouteBuses;
+    notifyListeners();
   }
 
   void _handleManagerOffRouteNotification(
