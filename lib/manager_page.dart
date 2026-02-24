@@ -1012,23 +1012,31 @@ class _ManagerPageState extends State<ManagerPage>
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.red.shade100, width: 1.5),
+        gradient: LinearGradient(
+          colors: [
+            Colors.red.shade900,
+            Colors.red.shade700,
+            Colors.orange.shade800,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.08),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
+            color: Colors.red.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: Theme(
           data: Theme.of(context).copyWith(
             dividerColor: Colors.transparent,
-            splashColor: Colors.red.withOpacity(0.05),
+            splashColor: Colors.white.withOpacity(0.1),
           ),
           child: ExpansionTile(
             initiallyExpanded: _isOffRouteBannerExpanded,
@@ -1036,70 +1044,73 @@ class _ManagerPageState extends State<ManagerPage>
               setState(() => _isOffRouteBannerExpanded = expanded);
             },
             tilePadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 4,
+              horizontal: 24,
+              vertical: 8,
             ),
-            leading: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.warning_rounded,
-                color: Colors.red.shade700,
-                size: 24,
-              ),
+            iconColor: Colors.white,
+            collapsedIconColor: Colors.white,
+            leading: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const Icon(
+                  Icons.report_problem_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ],
             ),
             title: Text(
               offRouteBuses.length == 1
-                  ? "ตรวจพบรถออกนอกเส้นทาง"
-                  : "ตรวจพบรถออกนอกเส้นทาง (${offRouteBuses.length} คัน)",
-              style: TextStyle(
-                color: Colors.red.shade900,
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-                letterSpacing: -0.2,
+                  ? "ตรวจพบรถออกนอกเส้นทาง!"
+                  : "แจ้งเตือนรถออกนอกเส้นทาง (${offRouteBuses.length} คัน)",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+                letterSpacing: 0.2,
               ),
             ),
             subtitle: Text(
               offRouteBuses.length == 1
                   ? "รถเบอร์ ${(offRouteBuses.first['bus'] as Bus).name} กำลังผิดเส้นทาง"
-                  : "กรุณาตรวจสอบรายชื่อรถที่มีปัญหาด้านล่าง",
+                  : "แตะเพื่อดูรายชื่อรถที่มีปัญหาทั้งหมด",
               style: TextStyle(
-                color: Colors.red.shade700.withOpacity(0.7),
-                fontSize: 12.5,
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
-            ),
-            trailing: Icon(
-              _isOffRouteBannerExpanded
-                  ? Icons.keyboard_arrow_up_rounded
-                  : Icons.keyboard_arrow_down_rounded,
-              color: Colors.red.shade300,
             ),
             children: [
               Container(
                 margin: const EdgeInsets.only(top: 4),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50.withOpacity(0.3),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
+                  gradient: LinearGradient(
+                    colors: [Colors.black.withOpacity(0.1), Colors.transparent],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
                 ),
                 child: Column(
                   children: [
                     const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20),
-                      child: Divider(height: 1),
+                      padding: EdgeInsets.symmetric(horizontal: 24),
+                      child: Divider(color: Colors.white24, height: 1),
                     ),
+                    const SizedBox(height: 8),
                     ...offRouteBuses.map((item) {
                       final bus = item['bus'] as Bus;
                       final dist = item['dist'] as double;
                       return Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
+                          horizontal: 12,
                           vertical: 4,
                         ),
                         child: InkWell(
@@ -1114,30 +1125,32 @@ class _ManagerPageState extends State<ManagerPage>
                             });
                           },
                           child: Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Colors.red.shade50,
+                                color: Colors.white.withOpacity(0.1),
                                 width: 1,
                               ),
                             ),
                             child: Row(
                               children: [
                                 CircleAvatar(
-                                  backgroundColor: Colors.red.shade100,
-                                  radius: 18,
+                                  backgroundColor: Colors.white.withOpacity(
+                                    0.2,
+                                  ),
+                                  radius: 20,
                                   child: Text(
                                     bus.name,
-                                    style: TextStyle(
-                                      color: Colors.red.shade900,
+                                    style: const TextStyle(
+                                      color: Colors.white,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 14,
+                                      fontSize: 15,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 14),
+                                const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -1146,33 +1159,44 @@ class _ManagerPageState extends State<ManagerPage>
                                       Text(
                                         "สาย: ${bus.routeId}",
                                         style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
                                           fontSize: 14,
                                         ),
                                       ),
+                                      const SizedBox(height: 2),
                                       Text(
                                         "เบี่ยงเบน: ${dist.toStringAsFixed(0)} เมตร",
-                                        style: TextStyle(
-                                          color: Colors.red.shade600,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
+                                        style: const TextStyle(
+                                          color: Colors.yellowAccent,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                       if (bus.driverName.isNotEmpty)
                                         Text(
                                           "คนขับ: ${bus.driverName}",
                                           style: TextStyle(
-                                            color: Colors.grey.shade600,
-                                            fontSize: 11,
+                                            color: Colors.white.withOpacity(
+                                              0.6,
+                                            ),
+                                            fontSize: 12,
                                           ),
                                         ),
                                     ],
                                   ),
                                 ),
-                                Icon(
-                                  Icons.arrow_forward_ios_rounded,
-                                  color: Colors.grey.shade300,
-                                  size: 14,
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 ),
                               ],
                             ),
