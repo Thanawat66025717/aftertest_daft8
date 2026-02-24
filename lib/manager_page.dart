@@ -1010,123 +1010,178 @@ class _ManagerPageState extends State<ManagerPage>
     if (offRouteBuses.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.red.shade700, Colors.red.shade400],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.red.shade100, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.red.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
         child: Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          data: Theme.of(context).copyWith(
+            dividerColor: Colors.transparent,
+            splashColor: Colors.red.withOpacity(0.05),
+          ),
           child: ExpansionTile(
             initiallyExpanded: _isOffRouteBannerExpanded,
             onExpansionChanged: (expanded) {
               setState(() => _isOffRouteBannerExpanded = expanded);
             },
-            iconColor: Colors.white,
-            collapsedIconColor: Colors.white,
             tilePadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
+              horizontal: 20,
+              vertical: 4,
             ),
             leading: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.red.shade50,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.white,
+              child: Icon(
+                Icons.warning_rounded,
+                color: Colors.red.shade700,
                 size: 24,
               ),
             ),
             title: Text(
               offRouteBuses.length == 1
-                  ? "⚠️ ตรวจพบรถออกนอกเส้นทาง!"
-                  : "⚠️ ตรวจพบรถออกนอกเส้นทาง (${offRouteBuses.length} คัน)",
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+                  ? "ตรวจพบรถออกนอกเส้นทาง"
+                  : "ตรวจพบรถออกนอกเส้นทาง (${offRouteBuses.length} คัน)",
+              style: TextStyle(
+                color: Colors.red.shade900,
+                fontWeight: FontWeight.w800,
                 fontSize: 16,
+                letterSpacing: -0.2,
               ),
             ),
             subtitle: Text(
               offRouteBuses.length == 1
-                  ? "เบอร์ ${(offRouteBuses.first['bus'] as Bus).name} ${offRouteBuses.first['dist'].toStringAsFixed(0)}ม."
-                  : "แตะเพื่อดูรายชื่อรถที่มีปัญหา",
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ? "รถเบอร์ ${(offRouteBuses.first['bus'] as Bus).name} กำลังผิดเส้นทาง"
+                  : "กรุณาตรวจสอบรายชื่อรถที่มีปัญหาด้านล่าง",
+              style: TextStyle(
+                color: Colors.red.shade700.withOpacity(0.7),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: Icon(
+              _isOffRouteBannerExpanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              color: Colors.red.shade300,
             ),
             children: [
               Container(
+                margin: const EdgeInsets.only(top: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.red.shade50.withOpacity(0.3),
                   borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
                   ),
                 ),
                 child: Column(
-                  children: offRouteBuses.map((item) {
-                    final bus = item['bus'] as Bus;
-                    final dist = item['dist'] as double;
-                    return ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        radius: 12,
-                        child: Text(
-                          bus.id.split('_').last,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.white,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: Divider(height: 1),
+                    ),
+                    ...offRouteBuses.map((item) {
+                      final bus = item['bus'] as Bus;
+                      final dist = item['dist'] as double;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: InkWell(
+                          onTap: () {
+                            _tabController.animateTo(1); // Driver tab
+                            _showOffRouteDetail({
+                              'bus_id': bus.id,
+                              'bus_name': bus.name,
+                              'driver_name': bus.driverName,
+                              'route_id': bus.routeId,
+                              'deviation_meters': dist,
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.red.shade50,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: Colors.red.shade100,
+                                  radius: 18,
+                                  child: Text(
+                                    bus.name,
+                                    style: TextStyle(
+                                      color: Colors.red.shade900,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "สาย: ${bus.routeId}",
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      Text(
+                                        "เบี่ยงเบน: ${dist.toStringAsFixed(0)} เมตร",
+                                        style: TextStyle(
+                                          color: Colors.red.shade600,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (bus.driverName.isNotEmpty)
+                                        Text(
+                                          "คนขับ: ${bus.driverName}",
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Colors.grey.shade300,
+                                  size: 14,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      title: Text(
-                        "รถเบอร์ ${bus.name} (สาย ${bus.routeId})",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      subtitle: Text(
-                        "เบี่ยง ${dist.toStringAsFixed(0)} ม. · ${bus.driverName}",
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.chevron_right,
-                        color: Colors.white54,
-                        size: 16,
-                      ),
-                      onTap: () {
-                        _tabController.animateTo(1); // Driver tab
-                        _showOffRouteDetail({
-                          'bus_id': bus.id,
-                          'bus_name': bus.name,
-                          'driver_name': bus.driverName,
-                          'route_id': bus.routeId,
-                          'deviation_meters': dist,
-                        });
-                      },
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                    const SizedBox(height: 12),
+                  ],
                 ),
               ),
             ],
