@@ -84,7 +84,10 @@ class _ManagerPageState extends State<ManagerPage>
         setState(() {
           _startSchedule.clear();
           data.forEach((key, value) {
-            _startSchedule[key] = value.toString();
+            // Filter out metadata like 'last_updated'
+            if (key != 'last_updated') {
+              _startSchedule[key] = value.toString();
+            }
           });
         });
       } else {
@@ -1209,10 +1212,11 @@ class _ManagerPageState extends State<ManagerPage>
     final locationService = context.watch<GlobalLocationService>();
 
     // Combine all known bus IDs from RTDB and buses with existing schedules
+    // Filter out any metadata keys like 'last_updated'
     final Set<String> busIdSet = {
       ...locationService.allKnownBusIds,
       ..._startSchedule.keys,
-    };
+    }.where((id) => id.startsWith('bus_')).toSet();
 
     final List<String> busIds = busIdSet.toList();
     // Sort bus IDs numerically (bus_1, bus_2, ...)
