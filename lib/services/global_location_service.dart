@@ -45,6 +45,7 @@ class GlobalLocationService extends ChangeNotifier {
   bool _notifyEnabled = false;
   String? _selectedNotifyRouteId;
   bool _isInitialized = false;
+  Set<String> _allKnownBusIds = {}; // เก็บไอดีรถทั้งหมดที่รู้จักจาก RTDB
 
   // New State for Destination
   String? _destinationName;
@@ -122,6 +123,7 @@ class GlobalLocationService extends ChangeNotifier {
   bool get notifyEnabled => _notifyEnabled;
   String? get selectedNotifyRouteId => _selectedNotifyRouteId;
   bool get isInitialized => _isInitialized;
+  Set<String> get allKnownBusIds => _allKnownBusIds;
   String? get destinationName => _destinationName;
   String? get destinationRouteId => _destinationRouteId;
 
@@ -368,6 +370,15 @@ class GlobalLocationService extends ChangeNotifier {
       bool anyChanged = false;
 
       if (data is Map) {
+        // อัปเดตรายชื่อรถทั้งหมดที่มีใน RTDB (ดึงจาก keys)
+        final keys = data.keys.map((k) => k.toString()).toSet();
+        if (keys.any((k) => k == 'lat' || k == 'lng')) {
+          // กรณีโครงสร้างข้อมูลแบบเก่า (ตัวอย่างเดียว)
+          _allKnownBusIds.add('bus_1');
+        } else {
+          _allKnownBusIds.addAll(keys);
+        }
+
         data.forEach((key, value) {
           if (value is Map &&
               value.containsKey('lat') &&

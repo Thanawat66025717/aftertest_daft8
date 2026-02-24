@@ -1208,11 +1208,11 @@ class _ManagerPageState extends State<ManagerPage>
   Widget _buildScheduleTab() {
     final locationService = context.watch<GlobalLocationService>();
 
-    // Use only live buses from GlobalLocationService.
-    final Set<String> busIdSet = {};
-    for (var bus in locationService.buses) {
-      busIdSet.add(bus.id);
-    }
+    // Combine all known bus IDs from RTDB and buses with existing schedules
+    final Set<String> busIdSet = {
+      ...locationService.allKnownBusIds,
+      ..._startSchedule.keys,
+    };
 
     final List<String> busIds = busIdSet.toList();
     // Sort bus IDs numerically (bus_1, bus_2, ...)
