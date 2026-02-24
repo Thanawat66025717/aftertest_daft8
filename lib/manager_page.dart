@@ -1105,7 +1105,9 @@ class _ManagerPageState extends State<ManagerPage>
                       child: Divider(color: Colors.white24, height: 1),
                     ),
                     const SizedBox(height: 8),
-                    ...offRouteBuses.map((item) {
+                    ...offRouteBuses.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
                       final bus = item['bus'] as Bus;
                       final dist = item['dist'] as double;
                       return Padding(
@@ -1142,11 +1144,11 @@ class _ManagerPageState extends State<ManagerPage>
                                   ),
                                   radius: 20,
                                   child: Text(
-                                    bus.name,
+                                    "${index + 1}",
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 15,
+                                      fontSize: 16,
                                     ),
                                   ),
                                 ),
@@ -1157,7 +1159,7 @@ class _ManagerPageState extends State<ManagerPage>
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        "สาย: ${bus.routeId}",
+                                        "${bus.name} • สาย: ${bus.routeId}",
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.w800,
@@ -1166,7 +1168,7 @@ class _ManagerPageState extends State<ManagerPage>
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        "เบี่ยงเบน: ${dist.toStringAsFixed(0)} เมตร",
+                                        "ระยะเบี่ยงเบน: ${dist.toStringAsFixed(0)} เมตร",
                                         style: const TextStyle(
                                           color: Colors.yellowAccent,
                                           fontSize: 13,
