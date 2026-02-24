@@ -2257,184 +2257,192 @@ class _ManagerPageState extends State<ManagerPage>
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
-                          color: isOffRoute
-                              ? const Color(0xFFFFC107) // Amber/Yellow border
-                              : (isActive
-                                    ? routeColorValue
-                                    : Colors.grey.shade300),
-                          width: isOffRoute
-                              ? 4
-                              : 2, // Thicker border for yellow
+                          color: isActive
+                              ? routeColorValue
+                              : Colors.grey.shade300,
+                          width: 2,
                         ),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: routeColorValue.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: routeColorValue,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.person,
-                                    color: routeColorValue,
-                                    size: 28,
-                                  ),
-                                  Text(
-                                    busId.replaceAll('bus_', '#'),
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
+                      child: Stack(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: routeColorValue.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
                                       color: routeColorValue,
+                                      width: 2,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    driverName,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
+                                      Icon(
+                                        Icons.person,
+                                        color: routeColorValue,
+                                        size: 28,
+                                      ),
+                                      Text(
+                                        busId.replaceAll('bus_', '#'),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
                                           color: routeColorValue,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.route,
-                                              color: Colors.white,
-                                              size: 14,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'กำลังขับ $routeName',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
-                                  // Warning Label
-                                  if (isOffRoute)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 6.0),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.amber.shade50,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.amber.shade700,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.warning_amber_rounded,
-                                              size: 14,
-                                              color: Colors.amber.shade900,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            driverName,
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
                                             ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              "ออกนอกเส้นทาง!",
-                                              style: TextStyle(
-                                                color: Colors.amber.shade900,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                          ),
+                                          if (isOffRoute) ...[
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                              Icons.error_outline_rounded,
+                                              color: Colors.red,
+                                              size: 20,
                                             ),
                                           ],
-                                        ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: routeColorValue,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.route,
+                                                  color: Colors.white,
+                                                  size: 14,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'กำลังขับ $routeName',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  children: [
+                                    Container(
+                                      width: 16,
+                                      height: 16,
+                                      decoration: BoxDecoration(
+                                        color: isActive
+                                            ? Colors.green
+                                            : Colors.grey,
+                                        shape: BoxShape.circle,
+                                        boxShadow: isActive
+                                            ? [
+                                                BoxShadow(
+                                                  color: Colors.green
+                                                      .withValues(alpha: 0.5),
+                                                  blurRadius: 8,
+                                                  spreadRadius: 2,
+                                                ),
+                                              ]
+                                            : null,
                                       ),
                                     ),
-                                ],
-                              ),
-                            ),
-                            Column(
-                              children: [
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: isActive
-                                        ? Colors.green
-                                        : Colors.grey,
-                                    shape: BoxShape.circle,
-                                    boxShadow: isActive
-                                        ? [
-                                            BoxShadow(
-                                              color: Colors.green.withValues(
-                                                alpha: 0.5,
-                                              ),
-                                              blurRadius: 8,
-                                              spreadRadius: 2,
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  isActive ? 'LIVE' : 'OFF',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: isActive
-                                        ? Colors.green
-                                        : Colors.grey,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                const Icon(
-                                  Icons.chevron_right,
-                                  color: Colors.grey,
-                                  size: 20,
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      isActive ? 'LIVE' : 'OFF',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: isActive
+                                            ? Colors.green
+                                            : Colors.grey,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Icon(
+                                      Icons.chevron_right,
+                                      color: Colors.grey,
+                                      size: 20,
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+                          if (isOffRoute)
+                            Positioned(
+                              top: 0,
+                              right: 24,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.only(
+                                    bottomLeft: Radius.circular(8),
+                                    bottomRight: Radius.circular(8),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Text(
+                                  "OFF-ROUTE",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   );
