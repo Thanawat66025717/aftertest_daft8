@@ -1245,7 +1245,16 @@ class _ManagerPageState extends State<ManagerPage>
         // Date Header
         Container(
           padding: const EdgeInsets.all(16),
-          color: Colors.grey.shade100,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: Column(
             children: [
               Row(
@@ -1408,94 +1417,149 @@ class _ManagerPageState extends State<ManagerPage>
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: filteredBusIds.length,
-            separatorBuilder: (context, index) => const Divider(),
-            itemBuilder: (context, index) {
-              final busId = filteredBusIds[index];
-              final currentRoute =
-                  _startSchedule[busId]; // green, red, blue, null
+          child: Container(
+            color: Colors.white,
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: filteredBusIds.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final busId = filteredBusIds[index];
+                final currentRoute =
+                    _startSchedule[busId]; // green, red, blue, null
 
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.purple.shade50,
-                  foregroundColor: Colors.purple,
-                  child: Text(busId.split('_').last),
-                ),
-                title: Text("รถเบอร์ ${busId.split('_').last}"),
-                subtitle: Text(
-                  currentRoute == null
-                      ? "ยังไม่ระบุเส้นทาง"
-                      : "สาย: ${_currentRouteLabel(currentRoute)}",
-                  style: TextStyle(
-                    color: currentRoute == null
-                        ? Colors.grey
-                        : _getRouteColor(currentRoute),
+                return Card(
+                  elevation: 2,
+                  shadowColor: Colors.black12,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: Colors.grey.shade100),
                   ),
-                ),
-                trailing: Builder(
-                  builder: (context) {
-                    final routes = context
-                        .watch<RouteManagerService>()
-                        .allRoutes;
+                  color: Colors.white,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.purple.shade50,
+                      foregroundColor: Colors.purple,
+                      child: Text(
+                        busId.split('_').last,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    title: Text(
+                      "รถเบอร์ ${busId.split('_').last}",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      currentRoute == null || currentRoute == 'unassigned'
+                          ? "ยังไม่ระบุเส้นทาง"
+                          : "สาย: ${_currentRouteLabel(currentRoute)}",
+                      style: TextStyle(
+                        color:
+                            currentRoute == null || currentRoute == 'unassigned'
+                            ? Colors.grey
+                            : _getRouteColor(currentRoute),
+                        fontWeight:
+                            currentRoute == null || currentRoute == 'unassigned'
+                            ? FontWeight.normal
+                            : FontWeight.w600,
+                      ),
+                    ),
+                    trailing: Builder(
+                      builder: (context) {
+                        final routes = context
+                            .watch<RouteManagerService>()
+                            .allRoutes;
 
-                    // Group routes by shortName to treat S1-AM/PM as one "S1"
-                    final Map<String, BusRouteData> groupedRoutes = {};
-                    for (var r in routes) {
-                      // Use shortName as key (S1, S2, S3, S4...)
-                      if (!groupedRoutes.containsKey(r.shortName)) {
-                        groupedRoutes[r.shortName] = r;
-                      }
-                    }
-
-                    return DropdownButton<String>(
-                      value: currentRoute,
-                      hint: const Text("เลือกสาย"),
-                      underline: Container(),
-                      items: [
-                        ...groupedRoutes.values.map((r) {
-                          // For S1, show a generic "หน้ามอ" label
-                          String label = r.shortName == 'S1'
-                              ? 'หน้ามอ (เขียว)'
-                              : r.name;
-                          return DropdownMenuItem(
-                            value: r
-                                .shortName, // Save shortName (e.g., S1) instead of specific ID
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.circle,
-                                  color: Color(r.colorValue),
-                                  size: 12,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(label),
-                              ],
-                            ),
-                          );
-                        }),
-                        const DropdownMenuItem(
-                          value: "unassigned",
-                          child: Row(
-                            children: [
-                              Icon(Icons.cancel, color: Colors.grey, size: 12),
-                              SizedBox(width: 8),
-                              Text("ยกเลิก / ไม่ระบุ"),
-                            ],
-                          ),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          _saveSchedule(busId, value);
+                        // Group routes by shortName to treat S1-AM/PM as one "S1"
+                        final Map<String, BusRouteData> groupedRoutes = {};
+                        for (var r in routes) {
+                          if (!groupedRoutes.containsKey(r.shortName)) {
+                            groupedRoutes[r.shortName] = r;
+                          }
                         }
+
+                        // Sanitize currentRoute to match value in Dropdown items
+                        // This prevents "Unexpected null value" or assertion errors
+                        String? sanitizedValue = currentRoute;
+                        if (sanitizedValue == 'green' ||
+                            sanitizedValue == 'S1-AM' ||
+                            sanitizedValue == 'S1-PM') {
+                          sanitizedValue = 'S1';
+                        } else if (sanitizedValue == 'red') {
+                          sanitizedValue = 'S2';
+                        } else if (sanitizedValue == 'blue') {
+                          sanitizedValue = 'S3';
+                        }
+
+                        // Final safety check: if sanitizedValue is not in items, set to null
+                        final bool valueExists =
+                            groupedRoutes.containsKey(sanitizedValue) ||
+                            sanitizedValue == 'unassigned';
+                        if (!valueExists) sanitizedValue = null;
+
+                        return DropdownButton<String>(
+                          value: sanitizedValue,
+                          hint: const Text(
+                            "เลือกสาย",
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          underline: Container(),
+                          icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+                          elevation: 8,
+                          borderRadius: BorderRadius.circular(12),
+                          dropdownColor: Colors.white,
+                          items: [
+                            ...groupedRoutes.values.map((r) {
+                              // For S1, show a generic "หน้ามอ" label
+                              String label = r.shortName == 'S1'
+                                  ? 'หน้ามอ (เขียว)'
+                                  : r.name;
+                              return DropdownMenuItem(
+                                value: r.shortName,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.circle,
+                                      color: Color(r.colorValue),
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(label),
+                                  ],
+                                ),
+                              );
+                            }),
+                            const DropdownMenuItem(
+                              value: "unassigned",
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.cancel,
+                                    color: Colors.grey,
+                                    size: 12,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text("ยกเลิก / ไม่ระบุ"),
+                                ],
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              _saveSchedule(busId, value);
+                            }
+                          },
+                        );
                       },
-                    );
-                  },
-                ),
-              );
-            },
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -2356,9 +2420,19 @@ class _ManagerPageState extends State<ManagerPage>
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F8E9),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF44B678), width: 1),
+        border: Border.all(
+          color: const Color(0xFF44B678).withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
