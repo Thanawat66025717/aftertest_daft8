@@ -2132,6 +2132,14 @@ class _ManagerPageState extends State<ManagerPage>
                 );
               }
 
+              // Get real-time off-route IDs from GlobalLocationService for consistency
+              final offRouteBuses = context
+                  .watch<GlobalLocationService>()
+                  .currentOffRouteBuses;
+              final offRouteIds = offRouteBuses
+                  .map((e) => (e['bus'] as Bus).id)
+                  .toSet();
+
               // Parse GPS data to get drivers
               List<Map<String, dynamic>> drivers = [];
               if (data is Map) {
@@ -2149,10 +2157,8 @@ class _ManagerPageState extends State<ManagerPage>
                     final lat = busData['lat'];
                     final lng = busData['lng'];
 
-                    // Check off-route status
-                    final isOffRoute = _recentOffRoutes.containsKey(
-                      busId.toString(),
-                    );
+                    // Use real-time ID matching
+                    final isOffRoute = offRouteIds.contains(busId.toString());
 
                     if (driverName.isNotEmpty) {
                       drivers.add({
